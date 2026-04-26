@@ -1,9 +1,20 @@
 @echo off
-echo BUILD RELEASE...
+setlocal enabledelayedexpansion
 
+cls
+echo =====================================
+echo        LAN P2P Chat Builder
+echo =====================================
+echo.
+
+call :progress 5 "Starting build..."
+
+call :progress 10 "Cleaning old build files..."
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
-if exist *.spec del *.spec
+if exist LANP2PChat.spec del LANP2PChat.spec
+
+call :progress 20 "Running PyInstaller. This may take several minutes..."
 
 pyinstaller --clean --onedir --noconfirm ^
 --name LANP2PChat ^
@@ -48,5 +59,49 @@ pyinstaller --clean --onedir --noconfirm ^
 --collect-all webview ^
 main.py
 
+if errorlevel 1 (
+    echo.
+    echo =====================================
+    echo BUILD FAILED
+    echo =====================================
+    pause
+    exit /b 1
+)
+
+call :progress 95 "Checking output..."
+
+if not exist "dist\LANP2PChat\LANP2PChat.exe" (
+    echo.
+    echo ERROR: EXE not found!
+    pause
+    exit /b 1
+)
+
+call :progress 100 "Build complete!"
+
+echo.
+echo =====================================
 echo DONE
+echo EXE: dist\LANP2PChat\LANP2PChat.exe
+echo =====================================
+echo.
 pause
+exit /b 0
+
+
+:progress
+set percent=%~1
+set message=%~2
+
+set bar=
+set /a blocks=%percent% / 5
+
+for /L %%i in (1,1,%blocks%) do set bar=!bar!#
+
+set empty=
+set /a emptyBlocks=20 - %blocks%
+
+for /L %%i in (1,1,%emptyBlocks%) do set empty=!empty!-
+
+echo [%percent%%%] [!bar!!empty!] %message%
+exit /b
