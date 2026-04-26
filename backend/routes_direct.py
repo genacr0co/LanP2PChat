@@ -125,3 +125,43 @@ async def api_direct_send(data: dict):
         "chat": my_chat,
         "message": msg,
     }
+
+@app.get("/direct-sync")
+async def p2p_direct_sync(peer_id: str):
+    """
+    P2P sync личных сообщений.
+
+    peer_id — node_id того, кто запрашивает sync.
+    Мы отдаём только direct-чат между текущим узлом и peer_id.
+    """
+
+    if not peer_id or peer_id == state.NODE_ID:
+        return {
+            "ok": False,
+            "error": "bad_peer",
+        }
+
+    config = await get_user_settings()
+
+    chat_id = make_direct_chat_id(state.NODE_ID, peer_id)
+    messages = await get_direct_messages(chat_id)
+
+    if not messages:
+        return {
+            "ok": True,
+            "chat": None,
+            "messages": [],
+        }
+
+    chat_for_peer = {
+        "chat_id": chat_id,
+        "peer_id": state.NODE_ID,
+        "peer_name": config.get("username", "Пользователь"),
+        "created_at": messages[0].get("created_at"),
+    }
+
+    return {
+        "ok": True,
+        "chat": chat_for_peer,
+        "messages": messages,
+    }
