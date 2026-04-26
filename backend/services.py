@@ -49,41 +49,19 @@ async def handle_packet(packet):
             from .direct_service import receive_direct_packet
             return await receive_direct_packet(data)
 
-        if packet_type == "group_search_request":
-            from .search_service import receive_group_search_request
-            return await receive_group_search_request(data)
-
-        if packet_type == "group_search_response":
-            from .search_service import receive_group_search_response
-            return await receive_group_search_response(data)
-
-        if packet_type == "group_join_check":
-            from .search_service import receive_group_join_check
-            return await receive_group_join_check(data)
-
-        if packet_type == "group_join_result":
-            from .search_service import receive_group_join_result
-            return await receive_group_join_result(data)
-
-        if packet_type == "typing":
-            return await receive_typing(data, forward=False)
+        # Поиск групп и typing пока отключены.
+        # Игнорируем старые пакеты, если они прилетят от старой версии клиента.
+        if packet_type in (
+            "group_search_request",
+            "group_search_response",
+            "group_join_check",
+            "group_join_result",
+            "typing",
+        ):
+            return False
 
     except Exception as e:
         print("[HANDLE PACKET ERROR]", packet_type, e)
         return False
 
     return False
-
-
-async def receive_typing(data, forward=True):
-    if not isinstance(data, dict):
-        return False
-
-    # Просто пересылаем typing-событие в локальный UI.
-    # В БД typing не сохраняем.
-    await notify_ui({
-        "type": "typing",
-        "data": data,
-    })
-
-    return True

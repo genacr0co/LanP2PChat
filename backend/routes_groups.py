@@ -8,7 +8,6 @@ from async_groups_database import (
     create_group,
     get_group,
     get_all_groups,
-    check_group_password,
     join_group,
     get_group_messages,
     get_sync_payload,
@@ -28,7 +27,6 @@ async def api_rooms():
 @app.post("/api/rooms")
 async def api_create_room(data: dict):
     name = data.get("name", "").strip()
-    password = data.get("password", "")
     unique_name = data.get("unique_name", "").strip().lower()
 
     if not name:
@@ -37,13 +35,16 @@ async def api_create_room(data: dict):
             "error": "empty_name",
         }
 
+    # Пароли пока отключены.
     room = await create_group(
         name=name,
-        password=password,
+        password="",
         created_by=state.NODE_ID,
         unique_name=unique_name,
     )
 
+    # Локально группа сохранится как joined=True.
+    # Для других peer group_service отправит public copy с joined=False.
     await receive_room(room, forward=True)
 
     return {
@@ -54,20 +55,15 @@ async def api_create_room(data: dict):
 
 @app.post("/api/rooms/check")
 async def api_check_room(data: dict):
-    room_id = data.get("room_id", "")
-    password = data.get("password", "")
-
-    ok = await check_group_password(room_id, password)
-
+    # Пароли пока отключены, оставляем endpoint для совместимости со старым фронтом.
     return {
-        "ok": ok,
+        "ok": True,
     }
 
 
 @app.post("/api/groups/join")
 async def api_group_join(data: dict):
     room_id = data.get("room_id", "")
-    password = data.get("password", "")
 
     if not room_id:
         return {
@@ -87,20 +83,6 @@ async def api_group_join(data: dict):
         return {
             "ok": True,
             "room": group,
-        }
-
-    if not group.get("has_password"):
-        await join_group(room_id)
-
-        return {
-            "ok": True,
-            "room": await get_group(room_id),
-        }
-
-    if not await check_group_password(room_id, password):
-        return {
-            "ok": False,
-            "error": "wrong_password",
         }
 
     await join_group(room_id)
@@ -133,7 +115,13 @@ async def api_send(data: dict):
 
     group = await get_group(room_id)
 
-    if not group or not group.get("is_joined"):
+    if not group:
+        return {
+            "ok": False,
+            "error": "group_not_found",
+        }
+
+    if not group.get("is_joined"):
         return {
             "ok": False,
             "error": "not_joined",
@@ -148,7 +136,13 @@ async def api_send(data: dict):
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
-    await receive_message(msg, forward=True)
+    saved = await receive_message(msg, forward=True)
+
+    if not saved:
+        return {
+            "ok": False,
+            "error": "message_not_saved",
+        }
 
     return {
         "ok": True,
