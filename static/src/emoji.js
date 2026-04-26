@@ -13,7 +13,9 @@ async function loadEmojis() {
 
 
 function renderEmojiPicker() {
-    if (!emojiPicker) return;
+    if (!emojiPicker) {
+        return;
+    }
 
     emojiPicker.innerHTML = "";
 
@@ -28,8 +30,6 @@ function renderEmojiPicker() {
 
             insertEmoji(`[${btn.dataset.code}]`);
             emojiPicker.classList.remove("show");
-
-            input.dispatchEvent(new Event("input"));
         };
 
         emojiPicker.appendChild(btn);
@@ -48,7 +48,9 @@ emojiBtn.onclick = (e) => {
 
 
 document.addEventListener("click", (e) => {
-    if (!emojiPicker) return;
+    if (!emojiPicker) {
+        return;
+    }
 
     if (!emojiPicker.contains(e.target) && e.target !== emojiBtn) {
         emojiPicker.classList.remove("show");

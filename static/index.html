@@ -3,7 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <title>LAN P2P Chat</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/layout.css">
+    <link rel="stylesheet" href="/static/css/sidebar.css">
+    <link rel="stylesheet" href="/static/css/chat.css">
+    <link rel="stylesheet" href="/static/css/composer.css">
+    <link rel="stylesheet" href="/static/css/modal.css">
+    <link rel="stylesheet" href="/static/css/emoji.css">
+    <link rel="stylesheet" href="/static/css/join.css">
+    <link rel="stylesheet" href="/static/css/responsive.css">
 </head>
 <body class="loading">
 
@@ -13,19 +21,12 @@
 
         <div class="sidebar-header">
             <h2>Чаты</h2>
-            <button id="createRoomBtn">+</button>
+            <button id="createRoomBtn" title="Создать группу">+</button>
         </div>
 
         <div class="tabs">
             <button id="groupsTab" class="active">Комнаты</button>
             <button id="dmTab">Личные</button>
-        </div>
-
-        <div id="groupSearchPanel" class="group-search-panel" style="display: none;">
-            <input id="groupSearchInput" placeholder="Найти группу...">
-            <button id="groupSearchBtn">Найти</button>
-            <div id="groupSearchStatus" class="group-search-status"></div>
-            <div id="groupSearchResults" class="group-search-results"></div>
         </div>
 
         <div id="roomsList" class="rooms-list"></div>
@@ -43,7 +44,6 @@
             <div>
                 <h1 id="roomTitle">LAN Chat</h1>
                 <p id="status">Запуск...</p>
-                <p id="typingStatus" class="typing-status"></p>
             </div>
         </header>
 
@@ -75,7 +75,6 @@
         <h2>Создать группу</h2>
         <input id="roomNameInput" placeholder="Название группы">
         <input id="roomUniqueInput" placeholder="Уникальное имя, например work">
-        <input id="roomPasswordInput" type="password" placeholder="Пароль или пусто">
         <button id="saveRoomBtn">Создать</button>
         <button id="cancelRoomBtn" class="secondary-btn">Отмена</button>
     </div>
@@ -88,7 +87,6 @@
 <script src="/static/src/dw_smiley.js"></script>
 
 <script src="/static/src/config.js"></script>
-<script src="/static/src/typing.js"></script>
 <script src="/static/src/direct.js"></script>
 <script src="/static/src/messages.js"></script>
 <script src="/static/src/rooms.js"></script>

@@ -14,7 +14,7 @@ function connectUiSocket() {
         }
 
         if (packet.type === "message") {
-            addMessage(packet.data);
+            handleIncomingGroupMessage(packet.data);
             return;
         }
 
@@ -24,32 +24,11 @@ function connectUiSocket() {
         }
 
         if (packet.type === "direct_message") {
-            const msg = packet.data;
-            if (!msg || !msg.chat_id) return;
-
-            const isMe = msg.username === username;
-            const isCurrent =
-                activeTab === "dm" &&
-                msg.chat_id === currentDirectChatId;
-
-            if (!isMe && !notified.has(msg.message_id)) {
-                notified.add(msg.message_id);
-                playNotifySound();
-
-                if (!isCurrent) {
-                    const oldCount = directUnreadCounts.get(msg.chat_id) || 0;
-                    directUnreadCounts.set(msg.chat_id, oldCount + 1);
-                    renderRooms();
-                }
-            }
-
-            if (isCurrent) {
-                addDirectMessage(msg);
-            }
-
+            handleIncomingDirectMessage(packet.data);
             return;
         }
 
+        // typing/search/unread больше не используем
     };
 
     ws.onclose = () => {
@@ -57,5 +36,56 @@ function connectUiSocket() {
         setTimeout(connectUiSocket, 1000);
     };
 
-    ws.onerror = () => ws.close();
+    ws.onerror = () => {
+        ws.close();
+    };
+}
+
+
+function handleIncomingGroupMessage(msg) {
+    if (!msg || !msg.message_id || !msg.room_id) {
+        return;
+    }
+
+    const room = rooms.get(msg.room_id);
+
+    // Если мы не вступили в группу, не показываем и не уведомляем.
+    if (!room || room.is_joined === false) {
+        return;
+    }
+
+    const isMe = msg.username === username || msg.sender_id === myNodeId;
+    const isCurrent =
+        activeTab === "group" &&
+        msg.room_id === currentRoomId;
+
+    if (!isMe && !notified.has(msg.message_id)) {
+        notified.add(msg.message_id);
+        playNotifySound();
+    }
+
+    if (isCurrent) {
+        addMessage(msg);
+    }
+}
+
+
+function handleIncomingDirectMessage(msg) {
+    if (!msg || !msg.message_id || !msg.chat_id) {
+        return;
+    }
+
+    const isMe = msg.username === username || msg.sender_id === myNodeId;
+    const isCurrent =
+        activeTab === "dm" &&
+        msg.chat_id === currentDirectChatId;
+
+    if (!isMe && !notified.has(msg.message_id)) {
+        notified.add(msg.message_id);
+        playNotifySound();
+    }
+
+    if (isCurrent) {
+        addDirectMessage(msg);
+    }
 }

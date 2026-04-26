@@ -1,11 +1,22 @@
 async function openDirectChat(targetNodeId, targetUsername) {
-    if (!targetNodeId) return;
-    if (targetUsername === username) return;
+    if (!targetNodeId) {
+        return;
+    }
+
+    if (targetNodeId === myNodeId) {
+        return;
+    }
+
+    if (targetUsername === username) {
+        return;
+    }
 
     try {
         const res = await fetch("/api/direct/start", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
+            headers: {
+                "Content-Type": "application/json",
+            },
             body: JSON.stringify({
                 target_node_id: targetNodeId,
                 target_username: targetUsername,
@@ -16,10 +27,11 @@ async function openDirectChat(targetNodeId, targetUsername) {
 
         if (data.ok && data.chat) {
             activeTab = "dm";
-            updateTabs();
 
             addDirectChat(data.chat);
             await selectDirectChat(data.chat);
+
+            updateTabs();
         }
     } catch {
         alert("Не удалось открыть личный чат");
@@ -28,9 +40,17 @@ async function openDirectChat(targetNodeId, targetUsername) {
 
 
 function addDirectChat(dm) {
-    if (!dm || !dm.chat_id) return;
+    if (!dm || !dm.chat_id) {
+        return;
+    }
 
-    directChats.set(dm.chat_id, dm);
+    const oldChat = directChats.get(dm.chat_id);
+
+    directChats.set(dm.chat_id, {
+        ...oldChat,
+        ...dm,
+    });
+
     renderRooms();
 }
 
@@ -46,20 +66,20 @@ async function loadDirectChats() {
 
 
 async function selectDirectChat(dm) {
-    if (!dm) return;
+    if (!dm) {
+        return;
+    }
 
     activeTab = "dm";
     currentRoomId = null;
     currentDirectChatId = dm.chat_id;
 
     roomTitle.textContent = dm.peer_name;
-    directUnreadCounts.set(dm.chat_id, 0);
-
-    typingUsers.clear();
-    renderTypingStatus();
 
     rendered.clear();
     chat.innerHTML = "";
+
+    form.style.display = "block";
 
     try {
         const res = await fetch(
@@ -67,6 +87,10 @@ async function selectDirectChat(dm) {
         );
 
         const list = await res.json();
+
+        rendered.clear();
+        chat.innerHTML = "";
+
         list.forEach(addDirectMessage);
     } catch {}
 

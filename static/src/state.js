@@ -11,19 +11,10 @@ const notified = new Set();
 const rooms = new Map();
 const directChats = new Map();
 
-const unlockedRooms = new Set(["general"]);
-const unreadCounts = new Map();
-const directUnreadCounts = new Map();
-
-const typingUsers = new Map();
-let typingTimer = null;
-let lastTypingSentAt = 0;
-
 const chat = document.getElementById("chat");
 const form = document.getElementById("form");
 const input = document.getElementById("messageInput");
 const statusEl = document.getElementById("status");
-const typingStatus = document.getElementById("typingStatus");
 const roomTitle = document.getElementById("roomTitle");
 
 const roomsList = document.getElementById("roomsList");
@@ -39,20 +30,12 @@ const saveNameBtn = document.getElementById("saveNameBtn");
 const roomModal = document.getElementById("roomModal");
 const roomNameInput = document.getElementById("roomNameInput");
 const roomUniqueInput = document.getElementById("roomUniqueInput");
-const roomPasswordInput = document.getElementById("roomPasswordInput");
 const saveRoomBtn = document.getElementById("saveRoomBtn");
 const cancelRoomBtn = document.getElementById("cancelRoomBtn");
 
-const groupSearchPanel = document.getElementById("groupSearchPanel");
-const groupSearchInput = document.getElementById("groupSearchInput");
-const groupSearchBtn = document.getElementById("groupSearchBtn");
-const groupSearchStatus = document.getElementById("groupSearchStatus");
-const groupSearchResults = document.getElementById("groupSearchResults");
-
-let currentGroupSearchId = null;
-let groupSearchTimer = null;
-
 const emojiBtn = document.getElementById("emojiBtn");
 const emojiPicker = document.getElementById("emojiPicker");
+
+const notifySound = document.getElementById("notifySound");
 
 let emojiCodes = [];

@@ -1,32 +1,39 @@
 function addMessage(msg) {
-    if (!msg) return;
+    if (!msg) {
+        return;
+    }
 
-    if (!msg.room_id) msg.room_id = "general";
+    if (!msg.room_id) {
+        msg.room_id = "general";
+    }
 
     if (msg.room_id.startsWith("dm_") || msg.room_id.startsWith("direct_")) {
         return;
     }
 
-    if (!rooms.has(msg.room_id)) {
+    const room = rooms.get(msg.room_id);
+
+    if (!room) {
         return;
     }
 
-    const isMe = msg.username === username;
-    const isCurrent = activeTab === "group" && msg.room_id === currentRoomId;
-
-    if (!isMe && !notified.has(msg.message_id)) {
-        notified.add(msg.message_id);
-        playNotifySound();
-
-        if (!isCurrent) {
-            const oldCount = unreadCounts.get(msg.room_id) || 0;
-            unreadCounts.set(msg.room_id, oldCount + 1);
-            renderRooms();
-        }
+    // Не показываем сообщения групп, куда пользователь не вступил
+    if (room.is_joined === false) {
+        return;
     }
 
-    if (!isCurrent) return;
-    if (rendered.has(msg.message_id)) return;
+    const isMe = msg.username === username || msg.sender_id === myNodeId;
+    const isCurrent =
+        activeTab === "group" &&
+        msg.room_id === currentRoomId;
+
+    if (!isCurrent) {
+        return;
+    }
+
+    if (rendered.has(msg.message_id)) {
+        return;
+    }
 
     rendered.add(msg.message_id);
 
@@ -52,7 +59,10 @@ function addMessage(msg) {
     if (nameEl) {
         nameEl.onclick = () => {
             if (nameEl.dataset.senderId !== "system") {
-                openDirectChat(nameEl.dataset.senderId, nameEl.dataset.username);
+                openDirectChat(
+                    nameEl.dataset.senderId,
+                    nameEl.dataset.username
+                );
             }
         };
     }
@@ -66,13 +76,21 @@ function addMessage(msg) {
 
 
 function addDirectMessage(msg) {
-    if (!msg) return;
-    if (!msg.chat_id) return;
-    if (rendered.has(msg.message_id)) return;
+    if (!msg) {
+        return;
+    }
+
+    if (!msg.chat_id) {
+        return;
+    }
+
+    if (rendered.has(msg.message_id)) {
+        return;
+    }
 
     rendered.add(msg.message_id);
 
-    const isMe = msg.username === username;
+    const isMe = msg.username === username || msg.sender_id === myNodeId;
 
     const row = document.createElement("div");
     row.className = "message-row" + (isMe ? " me" : "");
@@ -96,11 +114,29 @@ function addDirectMessage(msg) {
 
 
 async function loadHistory() {
-    if (!currentRoomId) return;
-    if (!rooms.has(currentRoomId)) return;
+    if (!currentRoomId) {
+        return;
+    }
 
-    const res = await fetch(`/api/messages?room_id=${encodeURIComponent(currentRoomId)}`);
+    const room = rooms.get(currentRoomId);
+
+    if (!room) {
+        return;
+    }
+
+    // До вступления историю не грузим
+    if (room.is_joined === false) {
+        return;
+    }
+
+    const res = await fetch(
+        `/api/messages?room_id=${encodeURIComponent(currentRoomId)}`
+    );
+
     const list = await res.json();
+
+    rendered.clear();
+    chat.innerHTML = "";
 
     list.forEach(addMessage);
 }

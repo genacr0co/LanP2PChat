@@ -1,0 +1,17 @@
+@media (max-width: 760px) {
+    .sidebar {
+        width: 220px;
+    }
+
+    .bubble {
+        max-width: 82%;
+    }
+
+    .header h1 {
+        font-size: 18px;
+    }
+
+    .online-panel h3 {
+        font-size: 12px;
+    }
+}

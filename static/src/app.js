@@ -2,21 +2,30 @@ form.onsubmit = async (e) => {
     e.preventDefault();
 
     const text = input.value.trim();
-    if (!text || !username) return;
+
+    if (!text || !username) {
+        return;
+    }
 
     input.value = "";
 
     // =========================
-    // DIRECT
+    // DIRECT MESSAGE
     // =========================
     if (activeTab === "dm" && currentDirectChatId) {
         const dm = directChats.get(currentDirectChatId);
-        if (!dm) return;
+
+        if (!dm) {
+            input.value = text;
+            return;
+        }
 
         try {
             const res = await fetch("/api/direct/send", {
                 method: "POST",
-                headers: {"Content-Type": "application/json"},
+                headers: {
+                    "Content-Type": "application/json",
+                },
                 body: JSON.stringify({
                     target_node_id: dm.peer_id,
                     target_username: dm.peer_name,
@@ -26,13 +35,21 @@ form.onsubmit = async (e) => {
 
             const data = await res.json();
 
-            if (data.ok) {
-                if (data.chat) addDirectChat(data.chat);
-                if (data.message) addDirectMessage(data.message);
-            } else {
+            if (!data.ok) {
+                input.value = text;
                 alert("Ошибка отправки");
+                return;
+            }
+
+            if (data.chat) {
+                addDirectChat(data.chat);
+            }
+
+            if (data.message) {
+                addDirectMessage(data.message);
             }
         } catch {
+            input.value = text;
             alert("Не удалось отправить сообщение");
         }
 
@@ -40,13 +57,30 @@ form.onsubmit = async (e) => {
     }
 
     // =========================
-    // GROUP
+    // GROUP MESSAGE
     // =========================
     if (activeTab === "group" && currentRoomId) {
+        const room = rooms.get(currentRoomId);
+
+        if (!room) {
+            input.value = text;
+            alert("Группа не найдена");
+            return;
+        }
+
+        if (room.is_joined === false) {
+            input.value = text;
+            alert("Сначала вступите в группу");
+            showJoinScreen(room);
+            return;
+        }
+
         try {
             const res = await fetch("/api/send", {
                 method: "POST",
-                headers: {"Content-Type": "application/json"},
+                headers: {
+                    "Content-Type": "application/json",
+                },
                 body: JSON.stringify({
                     room_id: currentRoomId,
                     username,
@@ -56,14 +90,24 @@ form.onsubmit = async (e) => {
 
             const data = await res.json();
 
-            if (data.ok && data.message) {
-                addMessage(data.message);
+            if (!data.ok) {
+                input.value = text;
+
+                if (data.error === "not_joined") {
+                    alert("Вы не участник этой группы");
+                    showJoinScreen(room);
+                } else {
+                    alert("Ошибка отправки");
+                }
+
+                return;
             }
 
-            if (!data.ok && data.error === "not_joined") {
-                alert("Вы не участник этой группы");
+            if (data.message) {
+                addMessage(data.message);
             }
         } catch {
+            input.value = text;
             alert("Ошибка отправки");
         }
     }
@@ -99,6 +143,7 @@ async function startApp() {
     } else {
         roomTitle.textContent = "Комнаты";
         chat.innerHTML = "";
+        form.style.display = "none";
     }
 
     document.body.classList.remove("loading");
@@ -106,17 +151,11 @@ async function startApp() {
     connectUiSocket();
     updateStatus();
 
-    // =========================
-    // ЛЁГКИЙ POLLING
-    // =========================
-
-    // список групп
-    setInterval(loadRooms, 3000);
-
-    // список личек
-    setInterval(loadDirectChats, 3000);
-
-    // статус уже сам обновляется внутри updateStatus()
+    // Лёгкое обновление списков.
+    // Важно: loadRooms() не должен ломать текущий чат.
+    setInterval(loadRooms, 5000);
+    setInterval(loadDirectChats, 5000);
 }
+
 
 startApp();

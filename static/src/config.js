@@ -4,6 +4,7 @@ async function loadConfig() {
         const config = await res.json();
 
         username = config.username || "";
+        myNodeId = config.node_id || null;
 
         if (!username) {
             nameModal.classList.add("show");
@@ -14,7 +15,6 @@ async function loadConfig() {
             input.disabled = false;
         }
     } catch {
-        // если сервер не ответил
         nameModal.classList.add("show");
         input.disabled = true;
     }
@@ -30,13 +30,27 @@ async function saveUsername() {
     }
 
     try {
-        await fetch("/api/config", {
+        const res = await fetch("/api/config", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({username: value}),
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                username: value,
+            }),
         });
 
+        const result = await res.json();
+
+        if (!result.ok) {
+            alert("Ошибка сохранения имени");
+            return;
+        }
+
         username = value;
+
+        // Обновим config после сохранения, чтобы точно получить node_id
+        await loadConfig();
 
         nameModal.classList.remove("show");
         input.disabled = false;

@@ -1,0 +1,49 @@
+.composer {
+    display: flex;
+    gap: 10px;
+    padding: 14px;
+    background: #111827;
+    border-top: 1px solid #1f2937;
+}
+
+.composer-wrap {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    width: 100%;
+    gap: 10px;
+}
+
+.composer textarea {
+    flex: 1;
+    min-height: 44px;
+    max-height: 140px;
+    resize: none;
+    border: none;
+    outline: none;
+    border-radius: 22px;
+    padding: 12px 18px;
+    font-size: 15px;
+    color: white;
+    background: #1f2937;
+    font-family: inherit;
+}
+
+.emoji-btn,
+.send-btn {
+    width: 46px;
+    height: 44px;
+    border: none;
+    border-radius: 22px;
+    color: white;
+    cursor: pointer;
+    font-size: 20px;
+}
+
+.emoji-btn {
+    background: #1f2937;
+}
+
+.send-btn {
+    background: #2563eb;
+}

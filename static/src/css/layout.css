@@ -1,0 +1,33 @@
+.layout {
+    height: 100vh;
+    display: flex;
+    background: #0f172a;
+}
+
+.app {
+    flex: 1;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, #0f172a, #111827);
+}
+
+.header {
+    height: 72px;
+    padding: 14px 22px;
+    background: #111827;
+    border-bottom: 1px solid #1f2937;
+    display: flex;
+    align-items: center;
+}
+
+.header h1 {
+    margin: 0;
+    font-size: 22px;
+}
+
+.header p {
+    margin: 4px 0 0;
+    color: #22c55e;
+    font-size: 13px;
+}

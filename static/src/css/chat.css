@@ -1,0 +1,54 @@
+.chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 22px;
+}
+
+.message-row {
+    display: flex;
+    margin-bottom: 10px;
+}
+
+.message-row.me {
+    justify-content: flex-end;
+}
+
+.bubble {
+    max-width: 68%;
+    padding: 10px 13px;
+    border-radius: 18px;
+    background: #1f2937;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+}
+
+.message-row.me .bubble {
+    background: #2563eb;
+}
+
+.name {
+    font-size: 12px;
+    font-weight: 700;
+    color: #cbd5e1;
+    margin-bottom: 4px;
+}
+
+.clickable-name {
+    cursor: pointer;
+}
+
+.clickable-name:hover {
+    text-decoration: underline;
+}
+
+.text {
+    white-space: pre-wrap;
+    line-height: 1.35;
+    font-size: 15px;
+}
+
+.time {
+    text-align: right;
+    margin-top: 5px;
+    font-size: 10px;
+    color: #cbd5e1;
+}

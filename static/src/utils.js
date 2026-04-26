@@ -6,8 +6,11 @@ function escapeHtml(text) {
 
 
 function playNotifySound() {
-    const sound = document.getElementById("notifySound");
-    if (!sound) return;
+    const sound = notifySound || document.getElementById("notifySound");
+
+    if (!sound) {
+        return;
+    }
 
     try {
         sound.currentTime = 0;
@@ -17,7 +20,9 @@ function playNotifySound() {
 
 
 function insertEmoji(emoji) {
-    if (!input) return;
+    if (!input) {
+        return;
+    }
 
     const start = input.selectionStart ?? input.value.length;
     const end = input.selectionEnd ?? input.value.length;
