@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>LAN P2P Chat</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="loading">
+
+<div class="layout">
+
+    <aside class="sidebar">
+
+        <div class="sidebar-header">
+            <h2>Чаты</h2>
+            <button id="createRoomBtn">+</button>
+        </div>
+
+        <div class="tabs">
+            <button id="groupsTab" class="active">Комнаты</button>
+            <button id="dmTab">Личные</button>
+        </div>
+
+        <div id="groupSearchPanel" class="group-search-panel" style="display: none;">
+            <input id="groupSearchInput" placeholder="Найти группу...">
+            <button id="groupSearchBtn">Найти</button>
+            <div id="groupSearchStatus" class="group-search-status"></div>
+            <div id="groupSearchResults" class="group-search-results"></div>
+        </div>
+
+        <div id="roomsList" class="rooms-list"></div>
+
+        <div class="online-panel">
+            <h3>Онлайн — нажми, чтобы написать</h3>
+            <div id="onlineList"></div>
+        </div>
+
+    </aside>
+
+    <div class="app">
+
+        <header class="header">
+            <div>
+                <h1 id="roomTitle">LAN Chat</h1>
+                <p id="status">Запуск...</p>
+                <p id="typingStatus" class="typing-status"></p>
+            </div>
+        </header>
+
+        <main id="chat" class="chat"></main>
+
+        <form id="form" class="composer">
+            <div class="composer-wrap">
+                <button type="button" id="emojiBtn" class="emoji-btn">😊</button>
+                <textarea id="messageInput" placeholder="Написать сообщение..."></textarea>
+                <button type="submit" class="send-btn">➤</button>
+                <div id="emojiPicker" class="emoji-picker"></div>
+            </div>
+        </form>
+
+    </div>
+
+</div>
+
+<div id="nameModal" class="modal">
+    <div class="modal-card">
+        <h2>Ваше имя</h2>
+        <input id="nameInput" placeholder="Например: Marat">
+        <button id="saveNameBtn">Продолжить</button>
+    </div>
+</div>
+
+<div id="roomModal" class="modal">
+    <div class="modal-card">
+        <h2>Создать группу</h2>
+        <input id="roomNameInput" placeholder="Название группы">
+        <input id="roomUniqueInput" placeholder="Уникальное имя, например work">
+        <input id="roomPasswordInput" type="password" placeholder="Пароль или пусто">
+        <button id="saveRoomBtn">Создать</button>
+        <button id="cancelRoomBtn" class="secondary-btn">Отмена</button>
+    </div>
+</div>
+
+<audio id="notifySound" src="/static/notify.mp3" preload="auto"></audio>
+
+<script src="/static/src/state.js"></script>
+<script src="/static/src/utils.js"></script>
+<script src="/static/src/dw_smiley.js"></script>
+
+<script src="/static/src/config.js"></script>
+<script src="/static/src/typing.js"></script>
+<script src="/static/src/direct.js"></script>
+<script src="/static/src/messages.js"></script>
+<script src="/static/src/rooms.js"></script>
+<script src="/static/src/socket.js"></script>
+<script src="/static/src/emoji.js"></script>
+<script src="/static/src/status.js"></script>
+<script src="/static/src/app.js"></script>
+
+</body>
+</html>
