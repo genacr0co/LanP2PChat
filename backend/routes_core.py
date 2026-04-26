@@ -1,7 +1,7 @@
 from fastapi.responses import FileResponse
 
 from settings import STATIC_DIR, HTTP_PORT
-from user_database import get_user_settings, save_user_settings
+from async_user_database import get_user_settings, save_user_settings
 
 from .app import app
 from . import state
@@ -9,12 +9,12 @@ from .utils import get_local_ip, get_broadcast_addresses
 
 
 @app.get("/")
-def index():
+async def index():
     return FileResponse(f"{STATIC_DIR}/index.html")
 
 
 @app.get("/api/me")
-def api_me():
+async def api_me():
     online_users = []
 
     with state.peer_lock:
@@ -28,7 +28,7 @@ def api_me():
                 "online": True,
             })
 
-    config = get_user_settings()
+    config = await get_user_settings()
 
     online_users.insert(0, {
         "node_id": state.NODE_ID,
@@ -49,11 +49,11 @@ def api_me():
 
 
 @app.get("/api/config")
-def api_config():
-    return get_user_settings()
+async def api_config():
+    return await get_user_settings()
 
 
 @app.post("/api/config")
-def api_save_config(data: dict):
-    save_user_settings(data)
+async def api_save_config(data: dict):
+    await save_user_settings(data)
     return {"ok": True}

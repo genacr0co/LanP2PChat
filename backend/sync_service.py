@@ -26,14 +26,15 @@ async def group_sync_from_peer(peer):
         payload = response.json()
 
         for room in payload.get("rooms", []):
-            receive_group(room, forward=False)
+            await receive_group(room, forward=False)
 
         for msg in payload.get("messages", []):
-            receive_group_message(msg, forward=False)
+            await receive_group_message(msg, forward=False)
 
         return True
 
-    except Exception:
+    except Exception as e:
+        print("[GROUP SYNC ERROR]", e)
         return False
 
 

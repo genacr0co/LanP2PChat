@@ -7,6 +7,10 @@ import aiosqlite
 from settings import GROUPS_DB_PATH
 
 
+def now_str():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
 def hash_password(password):
     if not password:
         return ""
@@ -16,18 +20,18 @@ def hash_password(password):
 
 def group_row_to_dict(row, include_password_hash=True):
     data = {
-        "room_id": row[0],
-        "name": row[1],
-        "unique_name": row[2],
-        "created_by": row[4],
-        "created_at": row[5],
-        "is_creator": bool(row[6]),
-        "is_joined": bool(row[7]),
-        "has_password": bool(row[3]),
+        "room_id": row["room_id"],
+        "name": row["name"],
+        "unique_name": row["unique_name"],
+        "created_by": row["created_by"],
+        "created_at": row["created_at"],
+        "is_creator": bool(row["is_creator"]),
+        "is_joined": bool(row["is_joined"]),
+        "has_password": bool(row["password_hash"]),
     }
 
     if include_password_hash:
-        data["password_hash"] = row[3]
+        data["password_hash"] = row["password_hash"]
 
     return data
 
@@ -64,6 +68,16 @@ async def init_groups_db():
         """)
 
         await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_group_messages_created_at
+            ON group_messages(created_at)
+        """)
+
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_groups_unique_name
+            ON groups(unique_name)
+        """)
+
+        await db.execute("""
             INSERT OR IGNORE INTO groups
             (room_id, name, unique_name, password_hash, created_by, created_at, is_creator, is_joined)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -73,7 +87,7 @@ async def init_groups_db():
             "general",
             "",
             "system",
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            now_str(),
             1,
             1,
         ))
@@ -93,7 +107,7 @@ async def create_group(name, password, created_by, unique_name=""):
         "unique_name": unique_name,
         "password_hash": hash_password(password),
         "created_by": created_by,
-        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "created_at": now_str(),
         "is_creator": True,
         "is_joined": True,
         "has_password": bool(password),
@@ -107,21 +121,47 @@ async def create_group(name, password, created_by, unique_name=""):
 async def save_group(group):
     room_id = group.get("room_id", "")
 
+    if not room_id:
+        return False
+
     if room_id.startswith("dm_") or room_id.startswith("direct_"):
         return False
 
     async with aiosqlite.connect(GROUPS_DB_PATH) as db:
         cursor = await db.execute("""
-            INSERT OR IGNORE INTO groups
+            INSERT INTO groups
             (room_id, name, unique_name, password_hash, created_by, created_at, is_creator, is_joined)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(room_id) DO UPDATE SET
+                name = excluded.name,
+                unique_name = excluded.unique_name,
+                password_hash = CASE
+                    WHEN excluded.password_hash != '' THEN excluded.password_hash
+                    ELSE groups.password_hash
+                END,
+                created_by = CASE
+                    WHEN excluded.created_by != '' THEN excluded.created_by
+                    ELSE groups.created_by
+                END,
+                created_at = CASE
+                    WHEN excluded.created_at != '' THEN excluded.created_at
+                    ELSE groups.created_at
+                END,
+                is_creator = CASE
+                    WHEN groups.is_creator = 1 OR excluded.is_creator = 1 THEN 1
+                    ELSE 0
+                END,
+                is_joined = CASE
+                    WHEN groups.is_joined = 1 OR excluded.is_joined = 1 THEN 1
+                    ELSE 0
+                END
         """, (
             group["room_id"],
             group["name"],
             group.get("unique_name", ""),
             group.get("password_hash", ""),
             group.get("created_by", ""),
-            group.get("created_at", ""),
+            group.get("created_at", now_str()),
             1 if group.get("is_creator") else 0,
             1 if group.get("is_joined") else 0,
         ))
@@ -135,7 +175,18 @@ async def save_group(group):
 
 
 async def save_discovered_group(group):
-    existing = await get_group(group.get("room_id", ""))
+    if not isinstance(group, dict):
+        return False
+
+    room_id = group.get("room_id", "")
+
+    if not room_id:
+        return False
+
+    if room_id.startswith("dm_") or room_id.startswith("direct_"):
+        return False
+
+    existing = await get_group(room_id)
 
     if existing:
         return False
@@ -144,12 +195,9 @@ async def save_discovered_group(group):
         "room_id": group["room_id"],
         "name": group["name"],
         "unique_name": group.get("unique_name", ""),
-        "password_hash": "",
+        "password_hash": group.get("password_hash", ""),
         "created_by": group.get("created_by", ""),
-        "created_at": group.get(
-            "created_at",
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        ),
+        "created_at": group.get("created_at") or now_str(),
         "is_creator": False,
         "is_joined": False,
     }
@@ -175,6 +223,8 @@ async def join_group(room_id):
 
 async def get_group(room_id):
     async with aiosqlite.connect(GROUPS_DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
         cursor = await db.execute("""
             SELECT room_id, name, unique_name, password_hash, created_by, created_at, is_creator, is_joined
             FROM groups
@@ -192,6 +242,8 @@ async def get_group(room_id):
 
 async def get_all_groups(include_not_joined=True):
     async with aiosqlite.connect(GROUPS_DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
         if include_not_joined:
             cursor = await db.execute("""
                 SELECT room_id, name, unique_name, password_hash, created_by, created_at, is_creator, is_joined
@@ -219,7 +271,12 @@ async def get_joined_groups():
 async def find_created_groups(query):
     q = (query or "").strip().lower()
 
+    if not q:
+        return []
+
     async with aiosqlite.connect(GROUPS_DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
         cursor = await db.execute("""
             SELECT room_id, name, unique_name, password_hash, created_by, created_at, is_creator, is_joined
             FROM groups
@@ -228,6 +285,7 @@ async def find_created_groups(query):
                   LOWER(name) LIKE ?
                   OR LOWER(unique_name) LIKE ?
               )
+            ORDER BY created_at DESC
         """, (f"%{q}%", f"%{q}%"))
 
         rows = await cursor.fetchall()
@@ -235,14 +293,15 @@ async def find_created_groups(query):
 
         return [
             {
-                "room_id": r[0],
-                "name": r[1],
-                "unique_name": r[2],
-                "created_by": r[4],
-                "created_at": r[5],
-                "has_password": bool(r[3]),
+                "room_id": row["room_id"],
+                "name": row["name"],
+                "unique_name": row["unique_name"],
+                "created_by": row["created_by"],
+                "created_at": row["created_at"],
+                "has_password": bool(row["password_hash"]),
+                # password_hash не отдаём в search response
             }
-            for r in rows
+            for row in rows
         ]
 
 
@@ -260,6 +319,9 @@ async def check_group_password(room_id, password):
 
 async def save_group_message(data):
     room_id = data.get("room_id", "general")
+
+    if room_id.startswith("dm_") or room_id.startswith("direct_"):
+        return False
 
     group = await get_group(room_id)
 
@@ -296,6 +358,8 @@ async def get_group_messages(room_id=None):
             return []
 
     async with aiosqlite.connect(GROUPS_DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
         if room_id:
             cursor = await db.execute("""
                 SELECT message_id, room_id, sender_id, username, message, created_at
@@ -313,17 +377,7 @@ async def get_group_messages(room_id=None):
         rows = await cursor.fetchall()
         await cursor.close()
 
-        return [
-            {
-                "message_id": r[0],
-                "room_id": r[1],
-                "sender_id": r[2],
-                "username": r[3],
-                "message": r[4],
-                "created_at": r[5],
-            }
-            for r in rows
-        ]
+        return [dict(row) for row in rows]
 
 
 async def get_sync_payload():

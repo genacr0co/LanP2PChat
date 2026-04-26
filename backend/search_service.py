@@ -1,4 +1,4 @@
-from groups_database import (
+from async_groups_database import (
     save_discovered_group,
     find_created_groups,
     check_group_password,
@@ -6,25 +6,27 @@ from groups_database import (
 
 from . import state
 from .services import notify_ui
-from .p2p_async import send_packet_to_peer
+from .p2p_async import send_packet_to_peer_async
 
 
-def receive_discovered_group(data):
+async def receive_discovered_group(data):
     if not isinstance(data, dict):
         return False
 
-    changed = save_discovered_group(data)
+    changed = await save_discovered_group(data)
 
-    if changed:
-        notify_ui({
-            "type": "group_found",
-            "data": data,
-        })
+    if not changed:
+        return False
 
-    return changed
+    await notify_ui({
+        "type": "group_found",
+        "data": data,
+    })
+
+    return True
 
 
-def receive_group_search_request(data):
+async def receive_group_search_request(data):
     if not isinstance(data, dict):
         return False
 
@@ -35,23 +37,32 @@ def receive_group_search_request(data):
     if not query or not requester_id or not search_id:
         return False
 
-    results = find_created_groups(query)
+    if requester_id == state.NODE_ID:
+        return False
+
+    results = await find_created_groups(query)
 
     if not results:
         return False
 
+    sent_any = False
+
     for group in results:
+        group = dict(group)
         group["search_id"] = search_id
 
-        send_packet_to_peer(requester_id, {
+        sent = await send_packet_to_peer_async(requester_id, {
             "type": "group_search_response",
             "data": group,
         })
 
-    return True
+        if sent:
+            sent_any = True
+
+    return sent_any
 
 
-def receive_group_search_response(data):
+async def receive_group_search_response(data):
     if not isinstance(data, dict):
         return False
 
@@ -62,10 +73,10 @@ def receive_group_search_response(data):
             state.pending_requests.setdefault(search_id, [])
             state.pending_requests[search_id].append(data)
 
-    return receive_discovered_group(data)
+    return await receive_discovered_group(data)
 
 
-def receive_group_join_check(data):
+async def receive_group_join_check(data):
     if not isinstance(data, dict):
         return False
 
@@ -77,9 +88,12 @@ def receive_group_join_check(data):
     if not requester_id or not request_id or not room_id:
         return False
 
-    ok = check_group_password(room_id, password)
+    if requester_id == state.NODE_ID:
+        return False
 
-    send_packet_to_peer(requester_id, {
+    ok = await check_group_password(room_id, password)
+
+    return await send_packet_to_peer_async(requester_id, {
         "type": "group_join_result",
         "data": {
             "request_id": request_id,
@@ -88,10 +102,8 @@ def receive_group_join_check(data):
         },
     })
 
-    return True
 
-
-def receive_group_join_result(data):
+async def receive_group_join_result(data):
     if not isinstance(data, dict):
         return False
 

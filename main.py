@@ -4,9 +4,12 @@ import time
 import requests
 import webview
 import atexit
+import os
+
+from settings import HTTP_PORT
 
 
-BACKEND_URL = "http://127.0.0.1:8765"
+BACKEND_URL = f"http://127.0.0.1:{HTTP_PORT}"
 backend_process = None
 
 
@@ -14,8 +17,10 @@ def wait_for_backend():
     for _ in range(30):
         try:
             response = requests.get(f"{BACKEND_URL}/api/me", timeout=1)
+
             if response.status_code == 200:
                 return True
+
         except Exception:
             time.sleep(0.5)
 
@@ -26,6 +31,7 @@ def is_backend_already_running():
     try:
         response = requests.get(f"{BACKEND_URL}/api/me", timeout=1)
         return response.status_code == 200
+
     except Exception:
         return False
 
@@ -38,9 +44,15 @@ def start_backend():
 
     exe = sys.executable
 
+    kwargs = {}
+
+    # CREATE_NEW_CONSOLE есть только на Windows
+    if os.name == "nt":
+        kwargs["creationflags"] = subprocess.CREATE_NEW_CONSOLE
+
     backend_process = subprocess.Popen(
         [exe, "--server"],
-        creationflags=subprocess.CREATE_NEW_CONSOLE
+        **kwargs,
     )
 
 
@@ -51,6 +63,7 @@ def stop_backend():
         try:
             backend_process.terminate()
             backend_process.wait(timeout=3)
+
         except Exception:
             try:
                 backend_process.kill()
@@ -70,6 +83,7 @@ if __name__ == "__main__":
         try:
             while True:
                 time.sleep(1)
+
         except KeyboardInterrupt:
             pass
 

@@ -6,6 +6,10 @@ import aiosqlite
 from settings import DIRECT_DB_PATH
 
 
+def now_str():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
 async def init_direct_db():
     async with aiosqlite.connect(DIRECT_DB_PATH) as db:
         await db.execute("""
@@ -33,10 +37,18 @@ async def init_direct_db():
             ON direct_messages(chat_id)
         """)
 
+        await db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_direct_messages_created_at
+            ON direct_messages(created_at)
+        """)
+
         await db.commit()
 
 
 def make_direct_chat_id(my_node_id, peer_node_id):
+    if not my_node_id or not peer_node_id:
+        raise ValueError("my_node_id and peer_node_id are required")
+
     ids = sorted([my_node_id, peer_node_id])
     return "direct_" + "_".join(ids)
 
@@ -51,7 +63,7 @@ async def save_direct_chat(chat):
             chat["chat_id"],
             chat["peer_id"],
             chat["peer_name"],
-            chat.get("created_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            chat.get("created_at") or now_str(),
         ))
 
         changed = cursor.rowcount > 0
@@ -64,6 +76,8 @@ async def save_direct_chat(chat):
 
 async def get_direct_chat(chat_id):
     async with aiosqlite.connect(DIRECT_DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
         cursor = await db.execute("""
             SELECT chat_id, peer_id, peer_name, created_at
             FROM direct_chats
@@ -76,18 +90,18 @@ async def get_direct_chat(chat_id):
         if not row:
             return None
 
-        return {
-            "chat_id": row[0],
-            "peer_id": row[1],
-            "peer_name": row[2],
-            "created_at": row[3],
-        }
+        return dict(row)
 
 
 async def get_direct_chats():
     async with aiosqlite.connect(DIRECT_DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
         cursor = await db.execute("""
-            SELECT dc.chat_id, dc.peer_id, dc.peer_name, dc.created_at,
+            SELECT dc.chat_id,
+                   dc.peer_id,
+                   dc.peer_name,
+                   dc.created_at,
                    MAX(dm.created_at) AS last_message_time
             FROM direct_chats dc
             LEFT JOIN direct_messages dm ON dc.chat_id = dm.chat_id
@@ -100,12 +114,12 @@ async def get_direct_chats():
 
         return [
             {
-                "chat_id": r[0],
-                "peer_id": r[1],
-                "peer_name": r[2],
-                "created_at": r[3],
+                "chat_id": row["chat_id"],
+                "peer_id": row["peer_id"],
+                "peer_name": row["peer_name"],
+                "created_at": row["created_at"],
             }
-            for r in rows
+            for row in rows
         ]
 
 
@@ -121,7 +135,7 @@ async def save_direct_message(msg):
             msg["sender_id"],
             msg["username"],
             msg["message"],
-            msg.get("created_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            msg.get("created_at") or now_str(),
         ))
 
         changed = cursor.rowcount > 0
@@ -134,6 +148,8 @@ async def save_direct_message(msg):
 
 async def get_direct_messages(chat_id=None):
     async with aiosqlite.connect(DIRECT_DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
         if chat_id:
             cursor = await db.execute("""
                 SELECT message_id, chat_id, sender_id, username, message, created_at
@@ -151,14 +167,4 @@ async def get_direct_messages(chat_id=None):
         rows = await cursor.fetchall()
         await cursor.close()
 
-        return [
-            {
-                "message_id": r[0],
-                "chat_id": r[1],
-                "sender_id": r[2],
-                "username": r[3],
-                "message": r[4],
-                "created_at": r[5],
-            }
-            for r in rows
-        ]
+        return [dict(row) for row in rows]

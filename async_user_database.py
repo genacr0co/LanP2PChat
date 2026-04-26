@@ -1,11 +1,8 @@
 import uuid
+
 import aiosqlite
 
 from settings import USER_DB_PATH
-
-
-async def user_connect():
-    return await aiosqlite.connect(USER_DB_PATH)
 
 
 async def init_user_db():
@@ -25,16 +22,38 @@ async def init_user_db():
             )
         """)
 
-        node_id = await get_setting("node_id", "")
-        username = await get_setting("username", "")
+        cursor = await db.execute(
+            "SELECT value FROM settings WHERE key = ?",
+            ("node_id",),
+        )
+        row = await cursor.fetchone()
+        await cursor.close()
+
+        node_id = row[0] if row else ""
 
         if not node_id:
             node_id = str(uuid.uuid4())
-            await set_setting("node_id", node_id)
+
+            await db.execute("""
+                INSERT OR REPLACE INTO settings (key, value)
+                VALUES (?, ?)
+            """, ("node_id", node_id))
+
+        cursor = await db.execute(
+            "SELECT value FROM settings WHERE key = ?",
+            ("username",),
+        )
+        row = await cursor.fetchone()
+        await cursor.close()
+
+        username = row[0] if row else ""
 
         await db.execute("""
-            INSERT OR IGNORE INTO profile (id, node_id, username)
+            INSERT INTO profile (id, node_id, username)
             VALUES (1, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                node_id = excluded.node_id,
+                username = excluded.username
         """, (node_id, username))
 
         await db.commit()
@@ -44,7 +63,7 @@ async def get_setting(key, default=""):
     async with aiosqlite.connect(USER_DB_PATH) as db:
         cursor = await db.execute(
             "SELECT value FROM settings WHERE key = ?",
-            (key,)
+            (key,),
         )
 
         row = await cursor.fetchone()
@@ -55,6 +74,8 @@ async def get_setting(key, default=""):
 
 async def set_setting(key, value):
     async with aiosqlite.connect(USER_DB_PATH) as db:
+        value = str(value)
+
         await db.execute("""
             INSERT OR REPLACE INTO settings (key, value)
             VALUES (?, ?)
@@ -67,7 +88,7 @@ async def set_setting(key, value):
                 WHERE id = 1
             """, (value,))
 
-        if key == "node_id":
+        elif key == "node_id":
             await db.execute("""
                 UPDATE profile
                 SET node_id = ?
@@ -85,6 +106,7 @@ async def get_or_create_node_id():
 
     node_id = str(uuid.uuid4())
     await set_setting("node_id", node_id)
+
     return node_id
 
 
@@ -96,9 +118,14 @@ async def get_user_settings():
 
 
 async def save_user_settings(data):
+    if not isinstance(data, dict):
+        return False
+
     if "username" in data:
         username = str(data.get("username") or "").strip()
         await set_setting("username", username)
+
+    return True
 
 
 async def get_username(default="Аноним"):

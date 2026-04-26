@@ -38,7 +38,7 @@ def get_broadcast_addresses():
             except Exception:
                 pass
 
-    return list(broadcasts)
+    return sorted(broadcasts)
 
 
 # =========================
@@ -61,7 +61,15 @@ def validate_message(data):
     if not all(k in data for k in required):
         return False
 
-    # защита от пустых сообщений
+    if not str(data.get("message_id", "")).strip():
+        return False
+
+    if not str(data.get("room_id", "")).strip():
+        return False
+
+    if not str(data.get("sender_id", "")).strip():
+        return False
+
     if not str(data.get("message", "")).strip():
         return False
 
@@ -82,7 +90,16 @@ def validate_room(data):
     if not all(k in data for k in required):
         return False
 
-    # нормализуем
+    if not str(data.get("room_id", "")).strip():
+        return False
+
+    if not str(data.get("name", "")).strip():
+        return False
+
+    if not str(data.get("created_by", "")).strip():
+        return False
+
+    # Нормализуем
     data.setdefault("password_hash", "")
     data.setdefault("room_type", "group")
 
@@ -109,6 +126,15 @@ def validate_direct_message(data):
     if not all(k in data for k in required):
         return False
 
+    if not str(data.get("message_id", "")).strip():
+        return False
+
+    if not str(data.get("chat_id", "")).strip():
+        return False
+
+    if not str(data.get("sender_id", "")).strip():
+        return False
+
     if not str(data.get("message", "")).strip():
         return False
 
@@ -126,4 +152,16 @@ def validate_direct_chat(data):
     if not isinstance(data, dict):
         return False
 
-    return all(k in data for k in required)
+    if not all(k in data for k in required):
+        return False
+
+    if not str(data.get("chat_id", "")).strip():
+        return False
+
+    if not str(data.get("peer_id", "")).strip():
+        return False
+
+    if not str(data.get("peer_name", "")).strip():
+        return False
+
+    return True
