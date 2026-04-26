@@ -29,7 +29,6 @@ const saveNameBtn = document.getElementById("saveNameBtn");
 
 const roomModal = document.getElementById("roomModal");
 const roomNameInput = document.getElementById("roomNameInput");
-const roomUniqueInput = document.getElementById("roomUniqueInput");
 const saveRoomBtn = document.getElementById("saveRoomBtn");
 const cancelRoomBtn = document.getElementById("cancelRoomBtn");
 

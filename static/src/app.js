@@ -150,11 +150,6 @@ async function startApp() {
 
     connectUiSocket();
     updateStatus();
-
-    // Лёгкое обновление списков.
-    // Важно: loadRooms() не должен ломать текущий чат.
-    setInterval(loadRooms, 5000);
-    setInterval(loadDirectChats, 5000);
 }
 
 

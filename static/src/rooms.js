@@ -7,15 +7,17 @@ function updateTabs() {
     renderRooms();
 }
 
-groupsTab.onclick = () => {
+
+groupsTab.onclick = async () => {
     activeTab = "group";
     currentDirectChatId = null;
 
     const room = rooms.get(currentRoomId) || rooms.get("general");
 
     if (room) {
-        selectRoom(room);
+        await selectRoom(room);
     } else {
+        rendered.clear();
         chat.innerHTML = "";
         roomTitle.textContent = "Комнаты";
         form.style.display = "none";
@@ -23,6 +25,7 @@ groupsTab.onclick = () => {
 
     updateTabs();
 };
+
 
 dmTab.onclick = () => {
     activeTab = "dm";
@@ -38,23 +41,57 @@ dmTab.onclick = () => {
 };
 
 
-function addRoom(room) {
+function addRoom(room, shouldRender = true, options = {}) {
     if (!room || !room.room_id) {
-        return;
+        return false;
     }
 
     if (room.room_id.startsWith("dm_") || room.room_id.startsWith("direct_")) {
-        return;
+        return false;
     }
 
     const oldRoom = rooms.get(room.room_id);
 
-    rooms.set(room.room_id, {
+    const mergedRoom = {
         ...oldRoom,
         ...room,
-    });
+    };
 
-    renderRooms();
+    const allowJoinedDowngrade = options.allowJoinedDowngrade === true;
+
+    // Если локально уже вступили, чужая P2P-копия не должна откатывать joined назад в false.
+    if (
+        !allowJoinedDowngrade &&
+        oldRoom &&
+        oldRoom.is_joined === true &&
+        room.is_joined === false
+    ) {
+        mergedRoom.is_joined = true;
+    }
+
+    // Если группа создана нами, чужое обновление не должно убрать creator.
+    if (
+        oldRoom &&
+        oldRoom.is_creator === true &&
+        room.is_creator === false
+    ) {
+        mergedRoom.is_creator = true;
+    }
+
+    const oldJson = oldRoom ? JSON.stringify(oldRoom) : "";
+    const newJson = JSON.stringify(mergedRoom);
+
+    if (oldJson === newJson) {
+        return false;
+    }
+
+    rooms.set(room.room_id, mergedRoom);
+
+    if (shouldRender) {
+        renderRooms();
+    }
+
+    return true;
 }
 
 
@@ -63,18 +100,20 @@ async function selectRoom(room) {
         return;
     }
 
+    const actualRoom = rooms.get(room.room_id) || room;
+
     activeTab = "group";
     currentDirectChatId = null;
-    currentRoomId = room.room_id;
+    currentRoomId = actualRoom.room_id;
 
-    roomTitle.textContent = room.name;
+    roomTitle.textContent = actualRoom.name;
 
     rendered.clear();
     chat.innerHTML = "";
 
-    if (room.is_joined === false) {
+    if (actualRoom.is_joined === false) {
         form.style.display = "none";
-        showJoinScreen(room);
+        showJoinScreen(actualRoom);
         updateTabs();
         return;
     }
@@ -113,25 +152,35 @@ function showJoinScreen(room) {
     }
 }
 
+
 async function loadRooms() {
-    const res = await fetch("/api/rooms");
-    const list = await res.json();
+    try {
+        const res = await fetch("/api/rooms");
+        const list = await res.json();
 
-    list.forEach(addRoom);
+        let changed = false;
 
-    if (!rooms.has(currentRoomId)) {
-        currentRoomId = "general";
-    }
+        list.forEach((room) => {
+            const didChange = addRoom(room, false);
 
-    renderRooms();
+            if (didChange) {
+                changed = true;
+            }
+        });
+
+        if (!rooms.has(currentRoomId)) {
+            currentRoomId = "general";
+        }
+
+        if (changed) {
+            renderRooms();
+        }
+    } catch {}
 }
+
 
 createRoomBtn.onclick = () => {
     roomNameInput.value = "";
-
-    if (roomUniqueInput) {
-        roomUniqueInput.value = "";
-    }
 
     roomModal.classList.add("show");
     roomNameInput.focus();
@@ -145,35 +194,38 @@ cancelRoomBtn.onclick = () => {
 
 saveRoomBtn.onclick = async () => {
     const name = roomNameInput.value.trim();
-    const unique_name = roomUniqueInput ? roomUniqueInput.value.trim() : "";
 
     if (!name) {
+        roomNameInput.focus();
         return;
     }
 
-    const res = await fetch("/api/rooms", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            name,
-            unique_name,
-        }),
-    });
+    try {
+        const res = await fetch("/api/rooms", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                name,
+            }),
+        });
 
-    const data = await res.json();
+        const data = await res.json();
 
-    if (!data.ok) {
-        alert("Не удалось создать группу");
-        return;
+        if (!data.ok) {
+            alert("Не удалось создать группу");
+            return;
+        }
+
+        addRoom(data.room);
+
+        roomModal.classList.remove("show");
+
+        await selectRoom(data.room);
+    } catch {
+        alert("Ошибка создания группы");
     }
-
-    addRoom(data.room);
-
-    roomModal.classList.remove("show");
-
-    await selectRoom(data.room);
 };
 
 
@@ -182,15 +234,6 @@ roomNameInput.addEventListener("keydown", (e) => {
         saveRoomBtn.click();
     }
 });
-
-
-if (roomUniqueInput) {
-    roomUniqueInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-            saveRoomBtn.click();
-        }
-    });
-}
 
 
 function renderRooms() {
@@ -243,24 +286,32 @@ function renderRooms() {
 
 
 async function joinGroup(group) {
-    const res = await fetch("/api/groups/join", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            room_id: group.room_id,
-        }),
-    });
-
-    const data = await res.json();
-
-    if (!data.ok) {
-        alert("Не удалось вступить в группу");
+    if (!group || !group.room_id) {
         return;
     }
 
-    addRoom(data.room);
+    try {
+        const res = await fetch("/api/groups/join", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                room_id: group.room_id,
+            }),
+        });
 
-    await selectRoom(data.room);
+        const data = await res.json();
+
+        if (!data.ok) {
+            alert("Не удалось вступить в группу");
+            return;
+        }
+
+        addRoom(data.room);
+
+        await selectRoom(data.room);
+    } catch {
+        alert("Ошибка вступления в группу");
+    }
 }
