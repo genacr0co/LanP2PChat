@@ -14,7 +14,7 @@ android {
         versionCode 1
         versionName "0.1"
 
-     python {
+        python {
             buildPython "python3.10"
 
             pip {
@@ -33,16 +33,28 @@ android {
         }
     }
 
+    // Задаем зависимости между задачами
+    tasks.whenTaskAdded { task ->
+        // Задача для установки Python зависимостей
+        if (task.name == 'installDebugPythonRequirements') {
+            task.dependsOn 'mergeDebugNativeDebugMetadata' // Устанавливаем зависимость от mergeDebugNativeDebugMetadata
+        }
+
+        // Задача для объединения Python исходных файлов
+        if (task.name == 'mergeDebugPythonSources') {
+            task.dependsOn 'installDebugPythonRequirements' // Устанавливаем зависимость от installDebugPythonRequirements
+        }
+    }
+
     sourceSets {
         main {
             python {
-                // Подключаем Python-код из корня проекта:
-                // backend/, async_*_database.py, settings.py, android_server.py
+                // Подключаем Python-код из корня проекта
                 srcDir "../../"
             }
 
             assets {
-                // Кладём содержимое static/ в Android assets.
+                // Кладем содержимое static/ в Android assets
                 srcDirs "../../static"
             }
         }
