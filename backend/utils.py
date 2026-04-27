@@ -1,8 +1,8 @@
 import socket
 import ipaddress
-
 import psutil
-
+import os
+import sys  # Добавьте этот импорт
 
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -165,3 +165,19 @@ def validate_direct_chat(data):
         return False
 
     return True
+
+# =========================
+# NEW SETTINGS FOR ANDROID
+# =========================
+
+# Для Android, возможно, вам нужно будет работать с файлом в нестандартной папке
+def get_app_data_path():
+    if getattr(sys, "frozen", False):  # Проверка на Android
+        return os.path.join(sys._MEIPASS, "data")
+    
+    # Если не на Android, берем стандартное место
+    return os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "LANP2PChat")
+
+# Получение пути к локальным данным (для хранения бд и данных)
+LOCAL_DATA_DIR = get_app_data_path()
+os.makedirs(LOCAL_DATA_DIR, exist_ok=True)

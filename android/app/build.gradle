@@ -1,0 +1,49 @@
+plugins {
+    id "com.android.application"
+    id "com.chaquo.python"
+}
+
+android {
+    namespace "com.lanp2pchat"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.lanp2pchat"
+        minSdk 24
+        targetSdk 35
+        versionCode 1
+        versionName "0.1"
+
+        python {
+            // Для Android лучше начать с более совместимого FastAPI/Pydantic v1 стека.
+            pip {
+                install "fastapi==0.95.2"
+                install "starlette==0.27.0"
+                install "pydantic==1.10.13"
+                install "uvicorn==0.22.0"
+                install "aiosqlite"
+                install "requests"
+                install "websockets"
+            }
+        }
+
+        ndk {
+            abiFilters "arm64-v8a"
+        }
+    }
+
+    sourceSets {
+        main {
+            python {
+                // Подключаем Python-код из корня проекта:
+                // backend/, async_*_database.py, settings.py, android_server.py
+                srcDir "../../"
+            }
+
+            assets {
+                // Кладём содержимое static/ в Android assets.
+                srcDirs "../../static"
+            }
+        }
+    }
+}
