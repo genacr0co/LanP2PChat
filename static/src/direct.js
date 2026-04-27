@@ -39,19 +39,32 @@ async function openDirectChat(targetNodeId, targetUsername) {
 }
 
 
-function addDirectChat(dm) {
+function addDirectChat(dm, shouldRender = true) {
     if (!dm || !dm.chat_id) {
-        return;
+        return false;
     }
 
     const oldChat = directChats.get(dm.chat_id);
 
-    directChats.set(dm.chat_id, {
+    const mergedChat = {
         ...oldChat,
         ...dm,
-    });
+    };
 
-    renderRooms();
+    const oldJson = oldChat ? JSON.stringify(oldChat) : "";
+    const newJson = JSON.stringify(mergedChat);
+
+    if (oldJson === newJson) {
+        return false;
+    }
+
+    directChats.set(dm.chat_id, mergedChat);
+
+    if (shouldRender) {
+        renderRooms();
+    }
+
+    return true;
 }
 
 
@@ -60,7 +73,19 @@ async function loadDirectChats() {
         const res = await fetch("/api/direct/chats");
         const list = await res.json();
 
-        list.forEach(addDirectChat);
+        let changed = false;
+
+        list.forEach((dm) => {
+            const didChange = addDirectChat(dm, false);
+
+            if (didChange) {
+                changed = true;
+            }
+        });
+
+        if (changed) {
+            renderRooms();
+        }
     } catch {}
 }
 
@@ -70,20 +95,23 @@ async function selectDirectChat(dm) {
         return;
     }
 
+    const actualDm = directChats.get(dm.chat_id) || dm;
+
     activeTab = "dm";
     currentRoomId = null;
-    currentDirectChatId = dm.chat_id;
+    currentDirectChatId = actualDm.chat_id;
 
-    roomTitle.textContent = dm.peer_name;
+    roomTitle.textContent = actualDm.peer_name;
 
     rendered.clear();
     chat.innerHTML = "";
 
     form.style.display = "block";
+    restoreDraftForCurrentChat();
 
     try {
         const res = await fetch(
-            `/api/direct/messages?chat_id=${encodeURIComponent(dm.chat_id)}`
+            `/api/direct/messages?chat_id=${encodeURIComponent(actualDm.chat_id)}`
         );
 
         const list = await res.json();

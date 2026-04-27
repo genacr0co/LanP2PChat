@@ -1,3 +1,134 @@
+// =========================
+// DRAFTS
+// =========================
+
+function getCurrentDraftKey() {
+    if (activeTab === "group" && currentRoomId) {
+        return `group:${currentRoomId}`;
+    }
+
+    if (activeTab === "dm" && currentDirectChatId) {
+        return `dm:${currentDirectChatId}`;
+    }
+
+    return null;
+}
+
+
+function saveCurrentDraft() {
+    const key = getCurrentDraftKey();
+
+    if (!key) {
+        return;
+    }
+
+    messageDrafts.set(key, input.value);
+}
+
+
+function restoreDraftForCurrentChat() {
+    const key = getCurrentDraftKey();
+
+    if (!key) {
+        input.value = "";
+        return;
+    }
+
+    input.value = messageDrafts.get(key) || "";
+}
+
+
+function clearDraftForCurrentChat() {
+    const key = getCurrentDraftKey();
+
+    if (!key) {
+        return;
+    }
+
+    messageDrafts.delete(key);
+}
+
+
+function restoreTextAfterFailedSend(text) {
+    input.value = text;
+    saveCurrentDraft();
+    input.focus();
+}
+
+
+// =========================
+// MUTE
+// =========================
+
+function loadMutedChats() {
+    try {
+        const raw = localStorage.getItem("mutedChats");
+        const list = raw ? JSON.parse(raw) : [];
+
+        mutedChats.clear();
+
+        if (Array.isArray(list)) {
+            list.forEach((key) => mutedChats.add(key));
+        }
+    } catch {}
+}
+
+
+function saveMutedChats() {
+    try {
+        localStorage.setItem(
+            "mutedChats",
+            JSON.stringify([...mutedChats])
+        );
+    } catch {}
+}
+
+
+function getMuteKey(type, id) {
+    return `${type}:${id}`;
+}
+
+
+function isChatMuted(type, id) {
+    if (!type || !id) {
+        return false;
+    }
+
+    return mutedChats.has(getMuteKey(type, id));
+}
+
+
+function toggleChatMute(type, id) {
+    if (!type || !id) {
+        return;
+    }
+
+    const key = getMuteKey(type, id);
+
+    if (mutedChats.has(key)) {
+        mutedChats.delete(key);
+    } else {
+        mutedChats.add(key);
+    }
+
+    saveMutedChats();
+    renderRooms();
+}
+
+
+// =========================
+// INPUT DRAFT SAVE
+// =========================
+
+input.addEventListener("input", () => {
+    saveCurrentDraft();
+});
+
+
+// =========================
+// SEND MESSAGE
+// =========================
+
 form.onsubmit = async (e) => {
     e.preventDefault();
 
@@ -16,7 +147,7 @@ form.onsubmit = async (e) => {
         const dm = directChats.get(currentDirectChatId);
 
         if (!dm) {
-            input.value = text;
+            restoreTextAfterFailedSend(text);
             return;
         }
 
@@ -36,7 +167,7 @@ form.onsubmit = async (e) => {
             const data = await res.json();
 
             if (!data.ok) {
-                input.value = text;
+                restoreTextAfterFailedSend(text);
                 alert("Ошибка отправки");
                 return;
             }
@@ -48,8 +179,10 @@ form.onsubmit = async (e) => {
             if (data.message) {
                 addDirectMessage(data.message);
             }
+
+            clearDraftForCurrentChat();
         } catch {
-            input.value = text;
+            restoreTextAfterFailedSend(text);
             alert("Не удалось отправить сообщение");
         }
 
@@ -63,13 +196,13 @@ form.onsubmit = async (e) => {
         const room = rooms.get(currentRoomId);
 
         if (!room) {
-            input.value = text;
+            restoreTextAfterFailedSend(text);
             alert("Группа не найдена");
             return;
         }
 
         if (room.is_joined === false) {
-            input.value = text;
+            restoreTextAfterFailedSend(text);
             alert("Сначала вступите в группу");
             showJoinScreen(room);
             return;
@@ -91,7 +224,7 @@ form.onsubmit = async (e) => {
             const data = await res.json();
 
             if (!data.ok) {
-                input.value = text;
+                restoreTextAfterFailedSend(text);
 
                 if (data.error === "not_joined") {
                     alert("Вы не участник этой группы");
@@ -106,8 +239,10 @@ form.onsubmit = async (e) => {
             if (data.message) {
                 addMessage(data.message);
             }
+
+            clearDraftForCurrentChat();
         } catch {
-            input.value = text;
+            restoreTextAfterFailedSend(text);
             alert("Ошибка отправки");
         }
     }
@@ -117,8 +252,10 @@ form.onsubmit = async (e) => {
 // =========================
 // ENTER SEND
 // =========================
+// Enter = отправить
+// Shift + Enter = перенос строки
 input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.ctrlKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         form.requestSubmit();
     }
@@ -128,7 +265,10 @@ input.addEventListener("keydown", (e) => {
 // =========================
 // APP START
 // =========================
+
 async function startApp() {
+    loadMutedChats();
+
     await loadConfig();
     await loadRooms();
     await loadDirectChats();

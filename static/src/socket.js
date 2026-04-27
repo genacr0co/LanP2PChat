@@ -27,8 +27,6 @@ function connectUiSocket() {
             handleIncomingDirectMessage(packet.data);
             return;
         }
-
-        // typing/search/unread больше не используем
     };
 
     ws.onclose = () => {
@@ -49,19 +47,22 @@ function handleIncomingGroupMessage(msg) {
 
     const room = rooms.get(msg.room_id);
 
-    // Если мы не вступили в группу, не показываем и не уведомляем.
     if (!room || room.is_joined === false) {
         return;
     }
 
     const isMe = msg.username === username || msg.sender_id === myNodeId;
+
     const isCurrent =
         activeTab === "group" &&
         msg.room_id === currentRoomId;
 
     if (!isMe && !notified.has(msg.message_id)) {
         notified.add(msg.message_id);
-        playNotifySound();
+
+        if (!isChatMuted("group", msg.room_id)) {
+            playNotifySound();
+        }
     }
 
     if (isCurrent) {
@@ -76,13 +77,17 @@ function handleIncomingDirectMessage(msg) {
     }
 
     const isMe = msg.username === username || msg.sender_id === myNodeId;
+
     const isCurrent =
         activeTab === "dm" &&
         msg.chat_id === currentDirectChatId;
 
     if (!isMe && !notified.has(msg.message_id)) {
         notified.add(msg.message_id);
-        playNotifySound();
+
+        if (!isChatMuted("dm", msg.chat_id)) {
+            playNotifySound();
+        }
     }
 
     if (isCurrent) {

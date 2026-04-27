@@ -167,3 +167,39 @@
 .rooms-list::-webkit-scrollbar-thumb:hover {
     background: #4b5563;
 }
+
+.room-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+
+.mute-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #e5e7eb;
+    cursor: pointer;
+    font-size: 15px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.75;
+}
+
+.mute-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    opacity: 1;
+}
+
+.room-item.active .mute-btn {
+    color: white;
+}
+
+.join-mark {
+    white-space: nowrap;
+}

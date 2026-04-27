@@ -27,7 +27,7 @@ groupsTab.onclick = async () => {
 };
 
 
-dmTab.onclick = () => {
+dmTab.onclick = async () => {
     activeTab = "dm";
     currentRoomId = null;
     currentDirectChatId = null;
@@ -36,6 +36,8 @@ dmTab.onclick = () => {
     chat.innerHTML = "";
     roomTitle.textContent = "Личные сообщения";
     form.style.display = "none";
+
+    await loadDirectChats();
 
     updateTabs();
 };
@@ -59,7 +61,6 @@ function addRoom(room, shouldRender = true, options = {}) {
 
     const allowJoinedDowngrade = options.allowJoinedDowngrade === true;
 
-    // Если локально уже вступили, чужая P2P-копия не должна откатывать joined назад в false.
     if (
         !allowJoinedDowngrade &&
         oldRoom &&
@@ -69,7 +70,6 @@ function addRoom(room, shouldRender = true, options = {}) {
         mergedRoom.is_joined = true;
     }
 
-    // Если группа создана нами, чужое обновление не должно убрать creator.
     if (
         oldRoom &&
         oldRoom.is_creator === true &&
@@ -113,12 +113,14 @@ async function selectRoom(room) {
 
     if (actualRoom.is_joined === false) {
         form.style.display = "none";
+        input.value = "";
         showJoinScreen(actualRoom);
         updateTabs();
         return;
     }
 
     form.style.display = "block";
+    restoreDraftForCurrentChat();
 
     await loadHistory();
 
@@ -248,16 +250,37 @@ function renderRooms() {
                 (room.room_id === currentRoomId ? " active" : "") +
                 (room.is_joined === false ? " not-joined" : "");
 
+            const muted = isChatMuted("group", room.room_id);
+
             const joinMark = room.is_joined === false
                 ? `<span class="join-mark">Вступить</span>`
                 : "";
 
+            const muteIcon = muted ? "🔇" : "🔔";
+            const muteTitle = muted ? "Включить звук" : "Отключить звук";
+
             item.innerHTML = `
                 <div class="room-name">${escapeHtml(room.name)}</div>
-                ${joinMark}
+
+                <div class="room-actions">
+                    ${joinMark}
+                    <button class="mute-btn" type="button" title="${muteTitle}">
+                        ${muteIcon}
+                    </button>
+                </div>
             `;
 
             item.onclick = () => selectRoom(room);
+
+            const muteBtn = item.querySelector(".mute-btn");
+
+            if (muteBtn) {
+                muteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    toggleChatMute("group", room.room_id);
+                };
+            }
+
             roomsList.appendChild(item);
         }
     }
@@ -270,11 +293,31 @@ function renderRooms() {
                 "room-item" +
                 (dm.chat_id === currentDirectChatId ? " active" : "");
 
+            const muted = isChatMuted("dm", dm.chat_id);
+            const muteIcon = muted ? "🔇" : "🔔";
+            const muteTitle = muted ? "Включить звук" : "Отключить звук";
+
             item.innerHTML = `
                 <div class="room-name">${escapeHtml(dm.peer_name)}</div>
+
+                <div class="room-actions">
+                    <button class="mute-btn" type="button" title="${muteTitle}">
+                        ${muteIcon}
+                    </button>
+                </div>
             `;
 
             item.onclick = () => selectDirectChat(dm);
+
+            const muteBtn = item.querySelector(".mute-btn");
+
+            if (muteBtn) {
+                muteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    toggleChatMute("dm", dm.chat_id);
+                };
+            }
+
             roomsList.appendChild(item);
         }
     }

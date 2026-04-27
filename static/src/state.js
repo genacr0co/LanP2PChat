@@ -1,4 +1,6 @@
 let username = "";
+let myNodeId = null;
+
 let currentRoomId = "general";
 let currentDirectChatId = null;
 let activeTab = "group";
@@ -10,6 +12,14 @@ const notified = new Set();
 
 const rooms = new Map();
 const directChats = new Map();
+
+// Черновики сообщений по чатам
+const messageDrafts = new Map();
+
+// Mute чатов:
+// group:<room_id>
+// dm:<chat_id>
+const mutedChats = new Set();
 
 const chat = document.getElementById("chat");
 const form = document.getElementById("form");
