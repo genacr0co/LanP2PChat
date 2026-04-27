@@ -14,8 +14,9 @@ android {
         versionCode 1
         versionName "0.1"
 
-        python {
-            // Для Android лучше начать с более совместимого FastAPI/Pydantic v1 стека.
+     python {
+            buildPython "python3.10"
+
             pip {
                 install "fastapi==0.95.2"
                 install "starlette==0.27.0"
