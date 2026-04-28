@@ -50,7 +50,7 @@ android {
         main {
             python {
                 // Подключаем Python-код из папки backend и корневых Python файлов
-                srcDirs "../../backend", "../../"
+                srcDirs "../../backend"
             }
 
             assets {
