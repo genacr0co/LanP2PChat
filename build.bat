@@ -14,7 +14,7 @@ if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
 if exist LANP2PChat.spec del LANP2PChat.spec
 
-call :progress 20 "Running PyInstaller. This may take several minutes..."
+call :progress 20 "Running PyInstaller..."
 
 pyinstaller --clean --onedir --noconfirm ^
 --name LANP2PChat ^
@@ -50,13 +50,17 @@ pyinstaller --clean --onedir --noconfirm ^
 --hidden-import=uvicorn.logging ^
 --hidden-import=asyncio ^
 --hidden-import=asyncio.windows_events ^
---hidden-import=websocket ^
 --hidden-import=webview ^
+--hidden-import=webview.platforms.winforms ^
+--hidden-import=webview.platforms.edgechromium ^
 --hidden-import=psutil ^
 --collect-all websockets ^
 --collect-all uvicorn ^
 --collect-all aiosqlite ^
---collect-all webview ^
+--exclude-module=webview.platforms.android ^
+--exclude-module=android ^
+--exclude-module=jnius ^
+--exclude-module=plyer ^
 main.py
 
 if errorlevel 1 (
