@@ -39,8 +39,6 @@ from .p2p.connection import (
 from .p2p.peers import (
     DISCOVERY_PACKET_TYPE,
     PEER_HELLO_PACKET_TYPE,
-    MULTICAST_GROUP,
-    MULTICAST_TTL,
     safe_int as _safe_int,
     get_platform_name as _get_platform_name,
     build_discovery_packet as _build_discovery_packet,
