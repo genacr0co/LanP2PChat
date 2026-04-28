@@ -40,25 +40,32 @@ async def send_peer_hello(websocket):
 # =========================
 
 async def peer_manager_loop():
+    """
+    Следит за peer-ами.
+
+    ВАЖНО:
+    Peer больше НЕ удаляется автоматически через PEER_TIMEOUT.
+
+    Почему:
+    - peer может быть известным устройством в LAN;
+    - WebSocket может временно закрыться;
+    - Android может не всегда присылать discovery;
+    - сообщения при этом всё равно могут доставляться через другие механизмы.
+
+    Теперь:
+    - если peer давно не активен -> online=False;
+    - если peer снова прислал discovery/message/ws packet -> touch_peer() вернёт online=True;
+    - state.peers не очищаем автоматически.
+    """
     while True:
         now = time.time()
 
         with state.peer_lock:
-            dead_peers = [
-                node_id
-                for node_id, peer in state.peers.items()
-                if now - peer.get("last_seen", 0) > PEER_TIMEOUT
-            ]
+            for node_id, peer in state.peers.items():
+                last_seen = peer.get("last_seen", 0)
 
-            for node_id in dead_peers:
-                state.peers.pop(node_id, None)
-
-                task = state.peer_tasks.pop(node_id, None)
-                if task:
-                    task.cancel()
-
-                state.peer_connections.pop(node_id, None)
-                state.peer_queues.pop(node_id, None)
+                if now - last_seen > PEER_TIMEOUT:
+                    peer["online"] = False
 
             peer_list = list(state.peers.values())
 
@@ -101,20 +108,30 @@ async def peer_connection_task(peer, queue):
     node_id = peer["node_id"]
     url = f"ws://{peer['ip']}:{peer['port']}/ws"
 
+    reconnect_delay = 1
+
     while True:
         try:
             async with websockets.connect(
                 url,
-                ping_interval=10,
-                ping_timeout=5,
-                close_timeout=2,
-                max_queue=64,
+                ping_interval=15,
+                ping_timeout=15,
+                close_timeout=5,
+                max_queue=128,
             ) as websocket:
+
+                reconnect_delay = 1
 
                 with state.peer_lock:
                     state.peer_connections[node_id] = websocket
 
+                    current_peer = state.peers.get(node_id)
+                    if current_peer:
+                        current_peer["online"] = True
+
                 touch_peer(node_id)
+
+                print(f"[PEER CONNECTED] node_id={node_id} url={url}")
 
                 # ВАЖНО:
                 # Сразу представляемся второй стороне.
@@ -135,17 +152,31 @@ async def peer_connection_task(peer, queue):
                 for task in pending:
                     task.cancel()
 
+                for task in done:
+                    try:
+                        task.result()
+                    except asyncio.CancelledError:
+                        pass
+                    except Exception as e:
+                        print(
+                            f"[PEER TASK ERROR] "
+                            f"node_id={node_id} url={url} error={e}"
+                        )
+
         except asyncio.CancelledError:
             break
 
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[PEER CONNECTION ERROR] node_id={node_id} url={url} error={e}")
 
         finally:
             with state.peer_lock:
                 state.peer_connections.pop(node_id, None)
 
-        await asyncio.sleep(1)
+            print(f"[PEER DISCONNECTED] node_id={node_id} url={url}")
+
+        await asyncio.sleep(reconnect_delay)
+        reconnect_delay = min(reconnect_delay * 2, 10)
 
 
 async def peer_sender_loop(websocket, queue):
@@ -156,9 +187,9 @@ async def peer_sender_loop(websocket, queue):
             text = json.dumps(packet, ensure_ascii=False)
             await websocket.send(text)
 
-        except Exception:
-            # Если отправка упала, соединение пересоздаст peer_connection_task.
-            pass
+        except Exception as e:
+            print("[PEER SEND ERROR]", e)
+            raise
 
         finally:
             queue.task_done()
