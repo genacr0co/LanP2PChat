@@ -1,5 +1,6 @@
 import json
 import socket
+import struct
 import time
 import asyncio
 import websockets
@@ -18,28 +19,230 @@ from .utils import get_local_ip, get_broadcast_addresses
 
 
 # =========================
+# DISCOVERY CONFIG
+# =========================
+
+DISCOVERY_PACKET_TYPE = "LAN_P2P_CHAT_NODE"
+
+# Локальный administratively scoped multicast-адрес.
+# Он не должен уходить в интернет, используется только внутри LAN.
+MULTICAST_GROUP = "239.255.42.99"
+
+# TTL = 1 означает "только текущая локальная сеть".
+MULTICAST_TTL = 1
+
+
+# =========================
+# PEER HELPERS
+# =========================
+
+def _safe_int(value, default):
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+
+def _get_platform_name():
+    try:
+        import platform
+        return platform.system().lower() or "unknown"
+    except Exception:
+        return "unknown"
+
+
+def _build_discovery_packet(config):
+    return {
+        "type": DISCOVERY_PACKET_TYPE,
+        "node_id": state.NODE_ID,
+        "username": config.get("username", "Аноним"),
+        "ip": get_local_ip(),
+        "port": HTTP_PORT,
+        "platform": _get_platform_name(),
+        "timestamp": time.time(),
+    }
+
+
+def _add_or_update_peer(packet, addr_ip, source):
+    """
+    Единая точка обновления state.peers.
+
+    source:
+    - "broadcast"
+    - "multicast"
+    - "websocket"
+    - "manual" в будущем
+    """
+    if not isinstance(packet, dict):
+        return False
+
+    peer_node_id = packet.get("node_id")
+
+    if not peer_node_id or peer_node_id == state.NODE_ID:
+        return False
+
+    packet_ip = packet.get("ip")
+    peer_ip = addr_ip or packet_ip
+
+    if not peer_ip:
+        return False
+
+    peer_port = _safe_int(packet.get("port"), HTTP_PORT)
+
+    username = packet.get("username", "Аноним")
+    platform_name = packet.get("platform", "unknown")
+
+    now = time.time()
+
+    restart_task = False
+
+    with state.peer_lock:
+        old_peer = state.peers.get(peer_node_id)
+
+        if old_peer:
+            old_ip = old_peer.get("ip")
+            old_port = _safe_int(old_peer.get("port"), HTTP_PORT)
+
+            if old_ip != peer_ip or old_port != peer_port:
+                restart_task = True
+
+        state.peers[peer_node_id] = {
+            "node_id": peer_node_id,
+            "username": username,
+            "ip": peer_ip,
+            "port": peer_port,
+            "platform": platform_name,
+            "source": source,
+            "online": True,
+            "last_seen": now,
+        }
+
+        if restart_task:
+            task = state.peer_tasks.pop(peer_node_id, None)
+            if task:
+                task.cancel()
+
+            state.peer_connections.pop(peer_node_id, None)
+
+    return True
+
+
+def _touch_peer(peer_node_id):
+    """
+    Обновляет last_seen для peer-а, если он уже известен.
+    Это полезно, когда discovery временно не работает,
+    но WebSocket-соединение реально живое.
+    """
+    if not peer_node_id or peer_node_id == state.NODE_ID:
+        return False
+
+    with state.peer_lock:
+        peer = state.peers.get(peer_node_id)
+
+        if not peer:
+            return False
+
+        peer["last_seen"] = time.time()
+        peer["online"] = True
+
+    return True
+
+
+# =========================
+# DISCOVERY SOCKET HELPERS
+# =========================
+
+def _create_discovery_send_socket():
+    udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udp.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+    try:
+        udp.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, MULTICAST_TTL)
+    except Exception:
+        pass
+
+    try:
+        udp.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, 1)
+    except Exception:
+        pass
+
+    try:
+        local_ip = get_local_ip()
+        if local_ip and local_ip != "127.0.0.1":
+            udp.setsockopt(
+                socket.IPPROTO_IP,
+                socket.IP_MULTICAST_IF,
+                socket.inet_aton(local_ip),
+            )
+    except Exception:
+        pass
+
+    return udp
+
+
+def _create_discovery_listen_socket():
+    udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    udp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+    try:
+        udp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+    except Exception:
+        pass
+
+    try:
+        udp.bind(("", DISCOVERY_PORT))
+    except Exception as e:
+        print("[DISCOVERY LISTEN BIND ERROR]", e)
+        udp.close()
+        return None
+
+    # Подключаемся к multicast-группе.
+    # Важно: на Android этого мало — ещё нужен MulticastLock на Java/Kotlin стороне.
+    try:
+        mreq = struct.pack(
+            "4s4s",
+            socket.inet_aton(MULTICAST_GROUP),
+            socket.inet_aton("0.0.0.0"),
+        )
+        udp.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+    except Exception as e:
+        print("[DISCOVERY MULTICAST JOIN WARNING]", e)
+
+    udp.setblocking(False)
+    return udp
+
+
+# =========================
 # DISCOVERY
 # =========================
 
-async def discovery_broadcast_loop():
-    udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    udp.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+async def discovery_announce_loop():
+    """
+    Отправляет discovery-пакеты двумя способами:
+
+    1. UDP multicast — основной способ для нормального LAN discovery.
+    2. UDP broadcast — fallback для сетей/роутеров, где multicast нестабилен.
+
+    Android всё равно должен держать WifiManager.MulticastLock,
+    иначе система может фильтровать multicast/broadcast пакеты.
+    """
+    udp = _create_discovery_send_socket()
 
     try:
         while True:
             try:
                 config = await get_user_settings()
-
-                packet = {
-                    "type": "LAN_P2P_CHAT_NODE",
-                    "node_id": state.NODE_ID,
-                    "username": config.get("username", "Аноним"),
-                    "ip": get_local_ip(),
-                    "port": HTTP_PORT,
-                }
-
+                packet = _build_discovery_packet(config)
                 data = json.dumps(packet, ensure_ascii=False).encode("utf-8")
 
+                # Multicast announcement
+                try:
+                    udp.sendto(data, (MULTICAST_GROUP, DISCOVERY_PORT))
+                except Exception as e:
+                    print("[DISCOVERY MULTICAST SEND WARNING]", e)
+
+                # Broadcast fallback
                 for broadcast_ip in get_broadcast_addresses():
                     try:
                         udp.sendto(data, (broadcast_ip, DISCOVERY_PORT))
@@ -47,7 +250,7 @@ async def discovery_broadcast_loop():
                         pass
 
             except Exception as e:
-                print("[DISCOVERY BROADCAST ERROR]", e)
+                print("[DISCOVERY ANNOUNCE ERROR]", e)
 
             await asyncio.sleep(DISCOVERY_INTERVAL)
 
@@ -55,16 +258,22 @@ async def discovery_broadcast_loop():
         udp.close()
 
 
-async def discovery_listen_loop():
-    udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    udp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    udp.setblocking(False)
+async def discovery_broadcast_loop():
+    """
+    Старое имя оставлено для совместимости.
+    Теперь внутри это общий announce loop:
+    multicast + broadcast fallback.
+    """
+    await discovery_announce_loop()
 
-    try:
-        udp.bind(("", DISCOVERY_PORT))
-    except Exception as e:
-        print("[DISCOVERY LISTEN BIND ERROR]", e)
-        udp.close()
+
+async def discovery_listen_loop():
+    """
+    Один listener принимает и multicast, и broadcast discovery-пакеты.
+    """
+    udp = _create_discovery_listen_socket()
+
+    if not udp:
         return
 
     loop = asyncio.get_running_loop()
@@ -73,26 +282,29 @@ async def discovery_listen_loop():
         while True:
             try:
                 data, addr = await loop.sock_recvfrom(udp, 4096)
-                packet = json.loads(data.decode("utf-8"))
 
-                if packet.get("type") != "LAN_P2P_CHAT_NODE":
+                try:
+                    packet = json.loads(data.decode("utf-8"))
+                except Exception:
                     continue
 
-                peer_node_id = packet.get("node_id")
-
-                if not peer_node_id or peer_node_id == state.NODE_ID:
+                if packet.get("type") != DISCOVERY_PACKET_TYPE:
                     continue
 
-                with state.peer_lock:
-                    state.peers[peer_node_id] = {
-                        "node_id": peer_node_id,
-                        "username": packet.get("username", "Аноним"),
-                        "ip": addr[0],
-                        "port": int(packet.get("port") or HTTP_PORT),
-                        "last_seen": time.time(),
-                    }
+                # addr[0] надёжнее, чем packet["ip"],
+                # потому что это реальный IP отправителя в LAN.
+                source_ip = addr[0] if addr else None
 
-            except Exception:
+                # Пока невозможно точно узнать, пришёл пакет через multicast или broadcast,
+                # потому что один socket принимает оба типа.
+                # Но для логики это не важно: peer найден.
+                _add_or_update_peer(packet, source_ip, source="discovery")
+
+            except asyncio.CancelledError:
+                break
+
+            except Exception as e:
+                print("[DISCOVERY LISTEN ERROR]", e)
                 await asyncio.sleep(0.1)
 
     finally:
@@ -178,8 +390,12 @@ async def peer_connection_task(peer, queue):
                 with state.peer_lock:
                     state.peer_connections[node_id] = websocket
 
+                _touch_peer(node_id)
+
                 sender = asyncio.create_task(peer_sender_loop(websocket, queue))
-                receiver = asyncio.create_task(peer_receiver_loop(websocket))
+                receiver = asyncio.create_task(
+                    peer_receiver_loop(websocket, node_id)
+                )
 
                 done, pending = await asyncio.wait(
                     [sender, receiver],
@@ -218,15 +434,18 @@ async def peer_sender_loop(websocket, queue):
             queue.task_done()
 
 
-async def peer_receiver_loop(websocket):
+async def peer_receiver_loop(websocket, peer_node_id=None):
     # Импорт внутри функции, чтобы не ловить circular import:
     # p2p_async -> services -> group/direct/search -> p2p_async
     from .services import handle_packet
 
     async for text in websocket:
         try:
+            _touch_peer(peer_node_id)
+
             packet = json.loads(text)
             await handle_packet(packet)
+
         except Exception as e:
             print("[PEER RECEIVE ERROR]", e)
 
@@ -390,7 +609,7 @@ async def start_network_layer():
     state.network_loop = asyncio.get_running_loop()
 
     await asyncio.gather(
-        discovery_broadcast_loop(),
+        discovery_announce_loop(),
         discovery_listen_loop(),
         peer_manager_loop(),
     )

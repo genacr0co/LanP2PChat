@@ -2,6 +2,8 @@ package com.lanp2pchat;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.Context;
+import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -26,12 +28,17 @@ public class MainActivity extends Activity {
     private TextView loadingText;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
+    private WifiManager.MulticastLock multicastLock;
+
     private static final String LOCAL_URL = "http://127.0.0.1:8765";
+    private static final String MULTICAST_LOCK_TAG = "LanP2PChatMulticastLock";
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        acquireMulticastLock();
 
         FrameLayout root = new FrameLayout(this);
 
@@ -73,6 +80,37 @@ public class MainActivity extends Activity {
         setContentView(root);
 
         startPythonBackend();
+    }
+
+    private void acquireMulticastLock() {
+        try {
+            WifiManager wifiManager =
+                (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+
+            if (wifiManager == null) {
+                return;
+            }
+
+            multicastLock = wifiManager.createMulticastLock(MULTICAST_LOCK_TAG);
+            multicastLock.setReferenceCounted(false);
+
+            if (!multicastLock.isHeld()) {
+                multicastLock.acquire();
+            }
+
+        } catch (Exception e) {
+            System.out.println("[ANDROID MULTICAST LOCK ERROR] " + e);
+        }
+    }
+
+    private void releaseMulticastLock() {
+        try {
+            if (multicastLock != null && multicastLock.isHeld()) {
+                multicastLock.release();
+            }
+        } catch (Exception e) {
+            System.out.println("[ANDROID MULTICAST UNLOCK ERROR] " + e);
+        }
     }
 
     private void startPythonBackend() {
@@ -199,6 +237,12 @@ public class MainActivity extends Activity {
         output.flush();
         output.close();
         input.close();
+    }
+
+    @Override
+    protected void onDestroy() {
+        releaseMulticastLock();
+        super.onDestroy();
     }
 
     @Override
