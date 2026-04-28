@@ -41,31 +41,56 @@ async def send_peer_hello(websocket):
 
 async def peer_manager_loop():
     """
-    Следит за peer-ами.
+    Heartbeat manager.
 
-    ВАЖНО:
-    Peer больше НЕ удаляется автоматически через PEER_TIMEOUT.
+    Каждое устройство отправляет broadcast discovery-сигнал.
+    Когда мы получаем сигнал от peer-а, add_or_update_peer()
+    обновляет peer["last_seen"].
 
-    Почему:
-    - peer может быть известным устройством в LAN;
-    - WebSocket может временно закрыться;
-    - Android может не всегда присылать discovery;
-    - сообщения при этом всё равно могут доставляться через другие механизмы.
+    Если от КОНКРЕТНОГО peer-а нет сигнала дольше PEER_TIMEOUT,
+    удаляем только этого peer-а.
 
-    Теперь:
-    - если peer давно не активен -> online=False;
-    - если peer снова прислал discovery/message/ws packet -> touch_peer() вернёт online=True;
-    - state.peers не очищаем автоматически.
+    Важно:
+    - не очищаем весь список peer-ов;
+    - не удаляем всех при ошибке одного;
+    - каждый peer проверяется отдельно по своему last_seen.
     """
     while True:
         now = time.time()
 
         with state.peer_lock:
+            peers_to_remove = []
+
             for node_id, peer in state.peers.items():
                 last_seen = peer.get("last_seen", 0)
+                silence_time = now - last_seen
 
-                if now - last_seen > PEER_TIMEOUT:
-                    peer["online"] = False
+                if silence_time > PEER_TIMEOUT:
+                    peers_to_remove.append(node_id)
+
+            for node_id in peers_to_remove:
+                peer = state.peers.get(node_id)
+
+                username = "unknown"
+                ip = "unknown"
+
+                if peer:
+                    username = peer.get("username", "unknown")
+                    ip = peer.get("ip", "unknown")
+
+                print(
+                    f"[PEER HEARTBEAT TIMEOUT] "
+                    f"remove node_id={node_id} username={username} ip={ip}"
+                )
+
+                state.peers.pop(node_id, None)
+
+                task = state.peer_tasks.pop(node_id, None)
+                if task:
+                    task.cancel()
+
+                state.peer_connections.pop(node_id, None)
+                state.peer_queues.pop(node_id, None)
 
             peer_list = list(state.peers.values())
 
@@ -133,10 +158,6 @@ async def peer_connection_task(peer, queue):
 
                 print(f"[PEER CONNECTED] node_id={node_id} url={url}")
 
-                # ВАЖНО:
-                # Сразу представляемся второй стороне.
-                # Это помогает Android увидеть ПК даже если Android не принимает
-                # входящие UDP discovery-пакеты.
                 await send_peer_hello(websocket)
 
                 sender = asyncio.create_task(peer_sender_loop(websocket, queue))

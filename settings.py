@@ -6,9 +6,18 @@ APP_NAME = "LAN P2P Chat"
 HTTP_PORT = 8765
 DISCOVERY_PORT = 9999
 
-DISCOVERY_INTERVAL = 2
+# Каждое устройство раз в 5 секунд отправляет broadcast heartbeat.
+DISCOVERY_INTERVAL = 5
+
 SYNC_INTERVAL = 5
-PEER_TIMEOUT = 20
+
+# Если от конкретного peer-а нет сигнала 15 секунд,
+# считаем, что он отключился, и удаляем только его.
+#
+# Логика:
+# 5 секунд — обычный интервал сигнала.
+# +10 секунд — запас на лаги/пропущенный пакет.
+PEER_TIMEOUT = 15
 
 
 def app_dir():
@@ -32,7 +41,7 @@ BASE_DIR = app_dir()
 ANDROID_STATIC_DIR = os.environ.get("LANP2PCHAT_STATIC_DIR")
 
 if ANDROID_STATIC_DIR:
-    STATIC_DIR = ANDROID_STATIC_DIR  # для Android используем путь, переданный из android_server.py
+    STATIC_DIR = ANDROID_STATIC_DIR
 else:
     STATIC_DIR = resource_path("static")
 
@@ -49,13 +58,8 @@ else:
 
 os.makedirs(LOCAL_DATA_DIR, exist_ok=True)
 
-# ====== НОВЫЕ БД ======
+# ====== БД ======
 
-# пользователь (настройки, username, node_id)
 USER_DB_PATH = os.path.join(LOCAL_DATA_DIR, "user.db")
-
-# группы
 GROUPS_DB_PATH = os.path.join(LOCAL_DATA_DIR, "groups.db")
-
-# личные сообщения
 DIRECT_DB_PATH = os.path.join(LOCAL_DATA_DIR, "direct.db")
