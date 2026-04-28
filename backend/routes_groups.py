@@ -4,18 +4,31 @@ from datetime import datetime
 from fastapi.responses import JSONResponse
 
 from async_user_database import get_user_settings
-from async_groups_database import (
+from groups_db.groups import (
     create_group,
     get_group,
     get_all_groups,
     join_group,
-    get_group_messages,
-    get_sync_payload,
+    leave_group,
+    delete_group,
+    rename_group,
 )
+
+from groups_db.messages import (
+    delete_group_message,
+    get_group_messages,
+)
+
+from groups_db.sync import get_sync_payload
+
 
 from .app import app
 from . import state
-from .group_service import receive_message, receive_room
+from .group_service import (
+    receive_message,
+    receive_room,
+    receive_group_message_delete,
+)
 
 
 @app.get("/api/rooms")
@@ -35,7 +48,6 @@ async def api_create_room(data: dict):
             "error": "empty_name",
         }
 
-    # Пароли пока отключены.
     room = await create_group(
         name=name,
         password="",
@@ -43,8 +55,6 @@ async def api_create_room(data: dict):
         unique_name=unique_name,
     )
 
-    # Локально группа сохранится как joined=True.
-    # Для других peer group_service отправит public copy с joined=False.
     await receive_room(room, forward=True)
 
     return {
@@ -55,7 +65,6 @@ async def api_create_room(data: dict):
 
 @app.post("/api/rooms/check")
 async def api_check_room(data: dict):
-    # Пароли пока отключены, оставляем endpoint для совместимости со старым фронтом.
     return {
         "ok": True,
     }
@@ -85,7 +94,13 @@ async def api_group_join(data: dict):
             "room": group,
         }
 
-    await join_group(room_id)
+    joined = await join_group(room_id)
+
+    if not joined:
+        return {
+            "ok": False,
+            "error": "join_failed",
+        }
 
     return {
         "ok": True,
@@ -93,10 +108,122 @@ async def api_group_join(data: dict):
     }
 
 
+@app.post("/api/groups/leave")
+async def api_group_leave(data: dict):
+    room_id = data.get("room_id", "")
+
+    if not room_id:
+        return {
+            "ok": False,
+            "error": "empty_room_id",
+        }
+
+    result = await leave_group(room_id)
+
+    if not result.get("ok"):
+        return result
+
+    return result
+
+
+@app.post("/api/groups/delete")
+async def api_group_delete(data: dict):
+    room_id = data.get("room_id", "")
+
+    if not room_id:
+        return {
+            "ok": False,
+            "error": "empty_room_id",
+        }
+
+    result = await delete_group(
+        room_id=room_id,
+        deleted_by=state.NODE_ID,
+    )
+
+    if not result.get("ok"):
+        return result
+
+    deleted_room = result.get("room")
+
+    if deleted_room:
+        await receive_room(deleted_room, forward=True)
+
+    return result
+
+
+@app.post("/api/groups/rename")
+async def api_group_rename(data: dict):
+    room_id = data.get("room_id", "")
+    name = data.get("name", "").strip()
+
+    if not room_id:
+        return {
+            "ok": False,
+            "error": "empty_room_id",
+        }
+
+    if not name:
+        return {
+            "ok": False,
+            "error": "empty_name",
+        }
+
+    result = await rename_group(
+        room_id=room_id,
+        new_name=name,
+        updated_by=state.NODE_ID,
+    )
+
+    if not result.get("ok"):
+        return result
+
+    renamed_room = result.get("room")
+
+    if renamed_room:
+        await receive_room(renamed_room, forward=True)
+
+    return result
+
+
 @app.get("/api/messages")
 async def api_messages(room_id: str = None):
     messages = await get_group_messages(room_id)
     return JSONResponse(messages)
+
+
+@app.post("/api/messages/delete")
+async def api_group_message_delete(data: dict):
+    message_id = data.get("message_id", "")
+    room_id = data.get("room_id", "")
+
+    if not message_id:
+        return {
+            "ok": False,
+            "error": "empty_message_id",
+        }
+
+    if not room_id:
+        return {
+            "ok": False,
+            "error": "empty_room_id",
+        }
+
+    result = await delete_group_message(
+        message_id=message_id,
+        room_id=room_id,
+        deleted_by=state.NODE_ID,
+    )
+
+    if not result.get("ok"):
+        return result
+
+    deleted_message = result.get("message")
+
+    if deleted_message:
+        await receive_group_message_delete(deleted_message, forward=True)
+
+    return result
 
 
 @app.post("/api/send")
@@ -134,6 +261,9 @@ async def api_send(data: dict):
         "username": username,
         "message": text,
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "is_deleted": False,
+        "deleted_at": "",
+        "deleted_by": "",
     }
 
     saved = await receive_message(msg, forward=True)

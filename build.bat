@@ -9,21 +9,32 @@ echo.
 
 call :progress 5 "Starting build..."
 
-call :progress 10 "Cleaning old build files..."
+call :progress 10 "Checking icon file..."
+if not exist "static\src\assets\logo_gers_new.ico" (
+    echo.
+    echo ERROR: Icon file not found!
+    echo Expected: static\src\assets\logo_gers_new.ico
+    echo.
+    echo Create .ico from logo_gers_new.png first.
+    pause
+    exit /b 1
+)
+
+call :progress 15 "Cleaning old build files..."
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
 if exist LANP2PChat.spec del LANP2PChat.spec
 
-call :progress 20 "Running PyInstaller..."
+call :progress 25 "Running PyInstaller..."
 
 pyinstaller --clean --onedir --noconfirm ^
 --name LANP2PChat ^
+--icon "static\src\assets\logo_gers_new.ico" ^
 --add-data "static;static" ^
 --hidden-import=backend ^
 --hidden-import=backend.server ^
 --hidden-import=backend.routes ^
 --hidden-import=backend.app ^
---hidden-import=backend.p2p_async ^
 --hidden-import=backend.services ^
 --hidden-import=backend.utils ^
 --hidden-import=backend.state ^
@@ -35,8 +46,13 @@ pyinstaller --clean --onedir --noconfirm ^
 --hidden-import=backend.routes_direct ^
 --hidden-import=backend.routes_ws ^
 --hidden-import=async_user_database ^
---hidden-import=async_groups_database ^
 --hidden-import=async_direct_database ^
+--hidden-import=groups_db ^
+--hidden-import=groups_db.common ^
+--hidden-import=groups_db.schema ^
+--hidden-import=groups_db.groups ^
+--hidden-import=groups_db.messages ^
+--hidden-import=groups_db.sync ^
 --hidden-import=settings ^
 --hidden-import=aiosqlite ^
 --hidden-import=websockets ^

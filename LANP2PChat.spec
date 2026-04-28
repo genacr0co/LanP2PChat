@@ -3,7 +3,7 @@ from PyInstaller.utils.hooks import collect_all
 
 datas = [('static', 'static')]
 binaries = []
-hiddenimports = ['backend', 'backend.server', 'backend.routes', 'backend.app', 'backend.p2p_async', 'backend.services', 'backend.utils', 'backend.state', 'backend.group_service', 'backend.direct_service', 'backend.sync_service', 'backend.routes_core', 'backend.routes_groups', 'backend.routes_direct', 'backend.routes_ws', 'async_user_database', 'async_groups_database', 'async_direct_database', 'settings', 'aiosqlite', 'websockets', 'websockets.legacy', 'websockets.legacy.server', 'uvicorn', 'uvicorn.protocols.websockets.websockets_impl', 'uvicorn.protocols.http.h11_impl', 'uvicorn.loops.auto', 'uvicorn.lifespan.on', 'uvicorn.logging', 'asyncio', 'asyncio.windows_events', 'webview', 'webview.platforms.winforms', 'webview.platforms.edgechromium', 'psutil']
+hiddenimports = ['backend', 'backend.server', 'backend.routes', 'backend.app', 'backend.services', 'backend.utils', 'backend.state', 'backend.group_service', 'backend.direct_service', 'backend.sync_service', 'backend.routes_core', 'backend.routes_groups', 'backend.routes_direct', 'backend.routes_ws', 'async_user_database', 'async_direct_database', 'groups_db', 'groups_db.common', 'groups_db.schema', 'groups_db.groups', 'groups_db.messages', 'groups_db.sync', 'settings', 'aiosqlite', 'websockets', 'websockets.legacy', 'websockets.legacy.server', 'uvicorn', 'uvicorn.protocols.websockets.websockets_impl', 'uvicorn.protocols.http.h11_impl', 'uvicorn.loops.auto', 'uvicorn.lifespan.on', 'uvicorn.logging', 'asyncio', 'asyncio.windows_events', 'webview', 'webview.platforms.winforms', 'webview.platforms.edgechromium', 'psutil']
 tmp_ret = collect_all('websockets')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('uvicorn')
@@ -43,6 +43,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=['static\\src\\assets\\logo_gers_new.ico'],
 )
 coll = COLLECT(
     exe,

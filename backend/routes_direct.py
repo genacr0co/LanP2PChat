@@ -8,12 +8,19 @@ from async_direct_database import (
     make_direct_chat_id,
     get_direct_chats,
     get_direct_messages,
+    delete_direct_message,
+    delete_direct_chat,
 )
 
 from .app import app
 from . import state
-from .direct_service import receive_direct_chat, receive_direct_message
-from .p2p_async import send_packet_to_peer_async
+from .direct_service import (
+    receive_direct_chat,
+    receive_direct_message,
+    receive_direct_message_delete,
+    receive_direct_chat_delete,
+)
+from .p2p.api import send_packet_to_peer_async
 
 
 @app.get("/api/direct/chats")
@@ -40,6 +47,9 @@ async def api_direct_start(data: dict):
         "peer_id": target_node_id,
         "peer_name": target_username,
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "is_deleted": False,
+        "deleted_at": "",
+        "deleted_by": "",
     }
 
     await receive_direct_chat(chat)
@@ -90,6 +100,9 @@ async def api_direct_send(data: dict):
         "peer_id": target_node_id,
         "peer_name": target_username,
         "created_at": now,
+        "is_deleted": False,
+        "deleted_at": "",
+        "deleted_by": "",
     }
 
     peer_chat = {
@@ -97,6 +110,9 @@ async def api_direct_send(data: dict):
         "peer_id": state.NODE_ID,
         "peer_name": config.get("username", "Пользователь"),
         "created_at": now,
+        "is_deleted": False,
+        "deleted_at": "",
+        "deleted_by": "",
     }
 
     msg = {
@@ -106,6 +122,9 @@ async def api_direct_send(data: dict):
         "username": config.get("username", "Аноним"),
         "message": text,
         "created_at": now,
+        "is_deleted": False,
+        "deleted_at": "",
+        "deleted_by": "",
     }
 
     await receive_direct_chat(my_chat)
@@ -125,6 +144,91 @@ async def api_direct_send(data: dict):
         "chat": my_chat,
         "message": msg,
     }
+
+
+@app.post("/api/direct/messages/delete")
+async def api_direct_message_delete(data: dict):
+    message_id = data.get("message_id", "")
+    chat_id = data.get("chat_id", "")
+    target_node_id = data.get("target_node_id", "")
+
+    if not message_id:
+        return {
+            "ok": False,
+            "error": "empty_message_id",
+        }
+
+    if not chat_id:
+        return {
+            "ok": False,
+            "error": "empty_chat_id",
+        }
+
+    if not target_node_id:
+        return {
+            "ok": False,
+            "error": "bad_target",
+        }
+
+    result = await delete_direct_message(
+        message_id=message_id,
+        chat_id=chat_id,
+        deleted_by=state.NODE_ID,
+    )
+
+    if not result.get("ok"):
+        return result
+
+    deleted_message = result.get("message")
+
+    if deleted_message:
+        await receive_direct_message_delete(deleted_message)
+
+        await send_packet_to_peer_async(target_node_id, {
+            "type": "direct_message_deleted",
+            "data": deleted_message,
+        })
+
+    return result
+
+
+@app.post("/api/direct/chats/delete")
+async def api_direct_chat_delete(data: dict):
+    chat_id = data.get("chat_id", "")
+    target_node_id = data.get("target_node_id", "")
+
+    if not chat_id:
+        return {
+            "ok": False,
+            "error": "empty_chat_id",
+        }
+
+    if not target_node_id:
+        return {
+            "ok": False,
+            "error": "bad_target",
+        }
+
+    result = await delete_direct_chat(
+        chat_id=chat_id,
+        deleted_by=state.NODE_ID,
+    )
+
+    if not result.get("ok"):
+        return result
+
+    deleted_chat = result.get("chat")
+
+    if deleted_chat:
+        await receive_direct_chat_delete(deleted_chat)
+
+        await send_packet_to_peer_async(target_node_id, {
+            "type": "direct_chat_deleted",
+            "data": deleted_chat,
+        })
+
+    return result
+
 
 @app.get("/direct-sync")
 async def p2p_direct_sync(peer_id: str):
@@ -158,6 +262,9 @@ async def p2p_direct_sync(peer_id: str):
         "peer_id": state.NODE_ID,
         "peer_name": config.get("username", "Пользователь"),
         "created_at": messages[0].get("created_at"),
+        "is_deleted": False,
+        "deleted_at": "",
+        "deleted_by": "",
     }
 
     return {

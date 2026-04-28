@@ -5,13 +5,17 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from settings import HTTP_PORT
 
-from async_groups_database import get_all_groups, get_group_messages
+from groups_db.groups import get_all_groups
+from groups_db.messages import get_group_messages
 from async_direct_database import get_direct_chats
 
 from .app import app
 from . import state
 from .services import handle_packet
-from .p2p_async import _add_or_update_peer, _touch_peer
+from .p2p.peers import (
+    add_or_update_peer as _add_or_update_peer,
+    touch_peer as _touch_peer,
+)
 
 
 def _get_packet_data(packet):

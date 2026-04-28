@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <title>LAN P2P Chat</title>
+
+    <link rel="icon" type="image/png" href="/static/src/assets/logo_gers_new.png">
+    <link rel="apple-touch-icon" href="/static/src/assets/logo_gers_new.png">
+
     <link rel="stylesheet" href="/static/css/base.css">
     <link rel="stylesheet" href="/static/css/layout.css">
     <link rel="stylesheet" href="/static/css/sidebar.css">
@@ -20,8 +24,33 @@
     <aside class="sidebar">
 
         <div class="sidebar-header">
-            <h2>Чаты</h2>
+            <div class="brand">
+                <img
+                    class="brand-logo"
+                    src="/static/src/assets/logo_gers_new.png"
+                    alt="LAN P2P Chat"
+                    draggable="false"
+                >
+                <div class="brand-text">
+                    <h2>LAN P2P Chat</h2>
+                    <span>local messenger</span>
+                </div>
+            </div>
+
             <button id="createRoomBtn" title="Создать группу">+</button>
+        </div>
+
+        <div class="profile-panel">
+            <div class="profile-avatar" id="profileAvatar">?</div>
+
+            <div class="profile-info">
+                <span class="profile-label">Ваш профиль</span>
+                <strong id="profileName">Без имени</strong>
+            </div>
+
+            <button id="editNameBtn" class="profile-edit-btn" type="button" title="Изменить имя">
+                ✎
+            </button>
         </div>
 
         <div class="tabs">
@@ -38,60 +67,184 @@
 
     </aside>
 
-    <div class="app">
+    <main class="app">
 
         <header class="header">
-            <div>
-                <h1 id="roomTitle">LAN Chat</h1>
-                <p id="status">Запуск...</p>
+            <div class="header-brand">
+                <div>
+                    <h1 id="roomTitle">LAN Chat</h1>
+                    <p id="status">Запуск...</p>
+                </div>
             </div>
+
+            <button
+                id="groupSettingsBtn"
+                class="group-settings-btn"
+                type="button"
+                title="Настройки чата"
+            >
+                ⚙
+            </button>
         </header>
 
-        <main id="chat" class="chat"></main>
+        <div id="chat" class="chat"></div>
 
         <form id="form" class="composer">
-            <div class="composer-wrap">
-                <button type="button" id="emojiBtn" class="emoji-btn">😊</button>
-                <textarea id="messageInput" placeholder="Написать сообщение..."></textarea>
-                <button type="submit" class="send-btn">➤</button>
-                <div id="emojiPicker" class="emoji-picker"></div>
-            </div>
+            <button id="emojiBtn" class="emoji-btn" type="button">😊</button>
+
+            <div id="emojiPicker" class="emoji-picker"></div>
+
+            <textarea
+                id="messageInput"
+                placeholder="Написать сообщение..."
+                rows="1"
+            ></textarea>
+
+            <button class="send-btn" type="submit">➤</button>
         </form>
 
-    </div>
+    </main>
 
 </div>
 
+<audio id="notifySound" src="/static/notify.mp3" preload="auto"></audio>
+
 <div id="nameModal" class="modal">
     <div class="modal-card">
-        <h2>Ваше имя</h2>
-        <input id="nameInput" placeholder="Например: Marat">
-        <button id="saveNameBtn">Продолжить</button>
+        <h2 id="nameModalTitle">Ваше имя</h2>
+        <input id="nameInput" type="text" placeholder="Введите имя">
+
+        <div class="modal-actions">
+            <button id="saveNameBtn" type="button">Сохранить</button>
+            <button id="cancelNameBtn" type="button">Отмена</button>
+        </div>
     </div>
 </div>
 
 <div id="roomModal" class="modal">
     <div class="modal-card">
         <h2>Создать группу</h2>
-        <input id="roomNameInput" placeholder="Название группы">
-        <button id="saveRoomBtn">Создать</button>
-        <button id="cancelRoomBtn" class="secondary-btn">Отмена</button>
+        <input id="roomNameInput" type="text" placeholder="Название группы">
+
+        <div class="modal-actions">
+            <button id="saveRoomBtn" type="button">Создать</button>
+            <button id="cancelRoomBtn" type="button">Отмена</button>
+        </div>
     </div>
 </div>
 
-<audio id="notifySound" src="/static/notify.mp3" preload="auto"></audio>
+<div id="groupSettingsModal" class="modal">
+    <div class="modal-card group-settings-card">
+        <div class="group-settings-head">
+            <div>
+                <h2>Настройки группы</h2>
+                <p id="groupSettingsTitle">Группа</p>
+            </div>
+
+            <button
+                id="closeGroupSettingsBtn"
+                class="modal-close-btn"
+                type="button"
+                title="Закрыть"
+            >
+                ×
+            </button>
+        </div>
+
+        <div class="group-settings-section">
+            <span class="settings-section-label">Действия</span>
+
+            <button id="groupMuteBtn" class="settings-action-btn" type="button">
+                🔔 Отключить звук
+            </button>
+
+            <button id="groupLeaveBtn" class="settings-action-btn warning" type="button">
+                🚪 Выйти из группы
+            </button>
+
+            <button id="groupRenameBtn" class="settings-action-btn owner-only-action" type="button">
+                ✎ Переименовать группу
+            </button>
+
+            <div id="groupRenameForm" class="group-rename-form">
+                <input
+                    id="groupRenameInput"
+                    type="text"
+                    placeholder="Новое название группы"
+                >
+
+                <div class="group-rename-actions">
+                    <button id="saveGroupRenameBtn" type="button">Сохранить</button>
+                    <button id="cancelGroupRenameBtn" type="button">Отмена</button>
+                </div>
+            </div>
+
+            <button id="groupDeleteBtn" class="settings-action-btn danger owner-only-action" type="button">
+                🗑 Удалить группу
+            </button>
+        </div>
+
+        <div class="group-settings-section">
+            <span class="settings-section-label">Участники</span>
+
+            <div id="groupMembersList" class="group-members-list">
+                Список участников появится позже.
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="directSettingsModal" class="modal">
+    <div class="modal-card group-settings-card">
+        <div class="group-settings-head">
+            <div>
+                <h2>Настройки личного чата</h2>
+                <p id="directSettingsTitle">Личный чат</p>
+            </div>
+
+            <button
+                id="closeDirectSettingsBtn"
+                class="modal-close-btn"
+                type="button"
+                title="Закрыть"
+            >
+                ×
+            </button>
+        </div>
+
+        <div class="group-settings-section">
+            <span class="settings-section-label">Действия</span>
+
+            <button id="directMuteBtn" class="settings-action-btn" type="button">
+                🔔 Отключить звук
+            </button>
+
+            <button id="directDeleteBtn" class="settings-action-btn danger" type="button">
+                🗑 Удалить личный чат
+            </button>
+        </div>
+
+        <div class="group-settings-section">
+            <span class="settings-section-label">Информация</span>
+
+            <div id="directInfoBox" class="group-members-list">
+                Этот чат будет удалён у обоих участников.
+            </div>
+        </div>
+    </div>
+</div>
 
 <script src="/static/src/state.js"></script>
 <script src="/static/src/utils.js"></script>
-<script src="/static/src/dw_smiley.js"></script>
-
 <script src="/static/src/config.js"></script>
-<script src="/static/src/direct.js"></script>
 <script src="/static/src/messages.js"></script>
 <script src="/static/src/rooms.js"></script>
-<script src="/static/src/socket.js"></script>
+<script src="/static/src/direct.js"></script>
 <script src="/static/src/emoji.js"></script>
+<script src="/static/src/typing.js"></script>
 <script src="/static/src/status.js"></script>
+<script src="/static/src/socket.js"></script>
+<script src="/static/src/dw_smiley.js"></script>
 <script src="/static/src/app.js"></script>
 
 </body>

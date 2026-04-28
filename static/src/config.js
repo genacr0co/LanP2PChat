@@ -1,3 +1,71 @@
+function getProfileLetter(name) {
+    const value = (name || "").trim();
+
+    if (!value) {
+        return "?";
+    }
+
+    return value[0].toUpperCase();
+}
+
+function updateProfileUi() {
+    if (profileName) {
+        profileName.textContent = username || "Без имени";
+    }
+
+    if (profileAvatar) {
+        profileAvatar.textContent = getProfileLetter(username);
+    }
+}
+
+function openNameModal(mode = "first_start") {
+    if (!nameModal) {
+        return;
+    }
+
+    if (nameModalTitle) {
+        nameModalTitle.textContent = mode === "edit"
+            ? "Изменить имя"
+            : "Ваше имя";
+    }
+
+    if (nameInput) {
+        nameInput.value = username || "";
+    }
+
+    if (cancelNameBtn) {
+        cancelNameBtn.style.display = mode === "edit" ? "inline-flex" : "none";
+    }
+
+    nameModal.classList.add("show");
+
+    if (input) {
+        input.disabled = true;
+    }
+
+    setTimeout(() => {
+        if (nameInput) {
+            nameInput.focus();
+            nameInput.select();
+        }
+    }, 50);
+}
+
+function closeNameModal() {
+    if (!username) {
+        return;
+    }
+
+    if (nameModal) {
+        nameModal.classList.remove("show");
+    }
+
+    if (input) {
+        input.disabled = false;
+        input.focus();
+    }
+}
+
 async function loadConfig() {
     try {
         const res = await fetch("/api/config");
@@ -6,20 +74,19 @@ async function loadConfig() {
         username = config.username || "";
         myNodeId = config.node_id || null;
 
+        updateProfileUi();
+
         if (!username) {
-            nameModal.classList.add("show");
-            input.disabled = true;
-            nameInput.focus();
+            openNameModal("first_start");
         } else {
-            nameModal.classList.remove("show");
-            input.disabled = false;
+            closeNameModal();
         }
     } catch {
-        nameModal.classList.add("show");
-        input.disabled = true;
+        username = "";
+        updateProfileUi();
+        openNameModal("first_start");
     }
 }
-
 
 async function saveUsername() {
     const value = nameInput.value.trim();
@@ -49,23 +116,41 @@ async function saveUsername() {
 
         username = value;
 
-        // Обновим config после сохранения, чтобы точно получить node_id
         await loadConfig();
 
-        nameModal.classList.remove("show");
-        input.disabled = false;
-        input.focus();
+        updateProfileUi();
+        closeNameModal();
     } catch {
         alert("Ошибка сохранения имени");
     }
 }
 
+if (saveNameBtn) {
+    saveNameBtn.onclick = saveUsername;
+}
 
-saveNameBtn.onclick = saveUsername;
+if (cancelNameBtn) {
+    cancelNameBtn.onclick = () => {
+        closeNameModal();
+    };
+}
 
-nameInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-        e.preventDefault();
-        saveUsername();
-    }
-});
+if (editNameBtn) {
+    editNameBtn.onclick = () => {
+        openNameModal("edit");
+    };
+}
+
+if (nameInput) {
+    nameInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            saveUsername();
+        }
+
+        if (e.key === "Escape") {
+            e.preventDefault();
+            closeNameModal();
+        }
+    });
+}

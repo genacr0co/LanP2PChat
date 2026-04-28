@@ -261,13 +261,23 @@ def validate_room(data):
     if not str(data.get("created_by", "")).strip():
         return False
 
-    # Нормализуем
+    if not str(data.get("created_at", "")).strip():
+        return False
+
+    # Нормализуем старые/неполные P2P-пакеты
+    data.setdefault("unique_name", "")
     data.setdefault("password_hash", "")
     data.setdefault("room_type", "group")
+    data.setdefault("is_creator", False)
+    data.setdefault("is_joined", False)
+    data.setdefault("has_password", False)
+
+    # Нормализуем удаление группы
+    data["is_deleted"] = bool(data.get("is_deleted", False))
+    data["deleted_at"] = data.get("deleted_at") or ""
+    data["deleted_by"] = data.get("deleted_by") or ""
 
     return True
-
-
 # =========================
 # DIRECT VALIDATION
 # =========================

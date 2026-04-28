@@ -45,12 +45,22 @@ async def handle_packet(packet):
             from .group_service import receive_group_message
             return await receive_group_message(data, forward=False)
 
+        if packet_type == "group_message_deleted":
+            from .group_service import receive_group_message_delete
+            return await receive_group_message_delete(data, forward=False)
+
         if packet_type == "direct_message":
             from .direct_service import receive_direct_packet
             return await receive_direct_packet(data)
 
-        # Поиск групп и typing пока отключены.
-        # Игнорируем старые пакеты, если они прилетят от старой версии клиента.
+        if packet_type == "direct_message_deleted":
+            from .direct_service import receive_direct_message_delete
+            return await receive_direct_message_delete(data)
+
+        if packet_type == "direct_chat_deleted":
+            from .direct_service import receive_direct_chat_delete
+            return await receive_direct_chat_delete(data)
+
         if packet_type in (
             "group_search_request",
             "group_search_response",

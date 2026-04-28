@@ -5,7 +5,24 @@ function escapeHtml(text) {
 }
 
 
-function playNotifySound() {
+function playNotifySound(type = null, id = null) {
+    /*
+        Защита на нижнем уровне.
+
+        Даже если где-то случайно вызовут:
+            playNotifySound()
+
+        звук не должен играть для замьюченного чата, если передали:
+            playNotifySound("group", room_id)
+            playNotifySound("dm", chat_id)
+    */
+
+    if (type && id && typeof isChatMuted === "function") {
+        if (isChatMuted(type, id)) {
+            return;
+        }
+    }
+
     const sound = notifySound || document.getElementById("notifySound");
 
     if (!sound) {

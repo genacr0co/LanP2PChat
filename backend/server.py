@@ -3,14 +3,14 @@ import threading
 import uvicorn
 
 from async_user_database import init_user_db, get_or_create_node_id
-from async_groups_database import init_groups_db
+from groups_db.schema import init_groups_db
 from async_direct_database import init_direct_db
 
 from settings import HTTP_PORT
 from .app import app
 from . import state
 from . import routes  # важно: регистрирует все routes
-from .p2p_async import start_network_layer
+from .p2p.api import start_network_layer
 
 from .sync_service import (
     group_sync_loop,
