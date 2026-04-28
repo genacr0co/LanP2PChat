@@ -33,28 +33,49 @@ android {
         }
     }
 
-    // Задаем зависимости между задачами
     tasks.whenTaskAdded { task ->
-        // Задача для установки Python зависимостей
-        if (task.name == 'installDebugPythonRequirements') {
-            task.dependsOn 'mergeDebugNativeDebugMetadata' // Устанавливаем зависимость от mergeDebugNativeDebugMetadata
+        if (task.name == "installDebugPythonRequirements") {
+            task.dependsOn "mergeDebugNativeDebugMetadata"
         }
 
-        // Задача для объединения Python исходных файлов
-        if (task.name == 'mergeDebugPythonSources') {
-            task.dependsOn 'installDebugPythonRequirements' // Устанавливаем зависимость от installDebugPythonRequirements
+        if (task.name == "mergeDebugPythonSources") {
+            task.dependsOn "installDebugPythonRequirements"
         }
     }
 
     sourceSets {
         main {
             python {
-                // Подключаем Python-код из папки backend и корневых Python файлов
-                srcDirs "../../backend"
+                // Берём корень проекта, но НЕ весь проект подряд.
+                srcDir "../../"
+
+                // Нужные Python-файлы из корня.
+                include "*.py"
+
+                // Нужная backend-папка.
+                include "backend/**/*.py"
+
+                // ВАЖНО: не тащим desktop main.py, там pywebview/subprocess.
+                exclude "main.py"
+
+                // ВАЖНО: не тащим Android-проект внутрь Python sources,
+                // иначе будет бесконечный путь android/app/build/python/sources/debug/...
+                exclude "android/**"
+
+                // Мусор и окружения.
+                exclude "venv/**"
+                exclude ".venv/**"
+                exclude "__pycache__/**"
+                exclude "**/__pycache__/**"
+                exclude "**/*.pyc"
+                exclude ".git/**"
+                exclude "build/**"
+                exclude "dist/**"
+                exclude "node_modules/**"
             }
 
             assets {
-                // Кладем содержимое static/ в Android assets
+                // Фронт кладём в Android assets.
                 srcDirs "../../static"
             }
         }
