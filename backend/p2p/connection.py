@@ -14,16 +14,18 @@ from .peers import (
 
 
 # =========================
-# PEER HELLO
+# PEER HELLO / HEARTBEAT
 # =========================
 
 async def send_peer_hello(websocket):
     """
-    Отправляет identity-handshake сразу после открытия WebSocket.
+    Отправляет identity/heartbeat пакет.
 
     Это не чат-сообщение.
-    Это служебный пакет, который помогает второй стороне узнать,
-    кто к ней подключился.
+    Это служебный пакет, который помогает второй стороне:
+    - узнать, кто подключился;
+    - обновлять last_seen;
+    - не удалять peer-а, если UDP broadcast до Android не доходит.
     """
     try:
         packet = await build_peer_hello_packet()
@@ -33,6 +35,24 @@ async def send_peer_hello(websocket):
     except Exception as e:
         print("[PEER HELLO SEND ERROR]", e)
         return False
+
+
+async def peer_heartbeat_loop(websocket):
+    """
+    WebSocket heartbeat.
+
+    UDP broadcast нужен для поиска устройств.
+    Но Android может плохо принимать broadcast от ПК.
+    Поэтому после WebSocket-подключения дополнительно отправляем
+    peer_hello каждые 5 секунд по самому WebSocket.
+    """
+    while True:
+        await asyncio.sleep(5)
+
+        ok = await send_peer_hello(websocket)
+
+        if not ok:
+            raise RuntimeError("peer heartbeat failed")
 
 
 # =========================
@@ -47,13 +67,11 @@ async def peer_manager_loop():
     Когда мы получаем сигнал от peer-а, add_or_update_peer()
     обновляет peer["last_seen"].
 
+    Дополнительно WebSocket heartbeat обновляет last_seen,
+    если UDP broadcast не доходит до Android.
+
     Если от КОНКРЕТНОГО peer-а нет сигнала дольше PEER_TIMEOUT,
     удаляем только этого peer-а.
-
-    Важно:
-    - не очищаем весь список peer-ов;
-    - не удаляем всех при ошибке одного;
-    - каждый peer проверяется отдельно по своему last_seen.
     """
     while True:
         now = time.time()
@@ -158,15 +176,17 @@ async def peer_connection_task(peer, queue):
 
                 print(f"[PEER CONNECTED] node_id={node_id} url={url}")
 
+                # Первый hello сразу после подключения.
                 await send_peer_hello(websocket)
 
                 sender = asyncio.create_task(peer_sender_loop(websocket, queue))
                 receiver = asyncio.create_task(
                     peer_receiver_loop(websocket, node_id)
                 )
+                heartbeat = asyncio.create_task(peer_heartbeat_loop(websocket))
 
                 done, pending = await asyncio.wait(
-                    [sender, receiver],
+                    [sender, receiver, heartbeat],
                     return_when=asyncio.FIRST_EXCEPTION,
                 )
 
