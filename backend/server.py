@@ -2,9 +2,11 @@ import asyncio
 import threading
 import uvicorn
 
-from async_user_database import init_user_db, get_or_create_node_id
+from user_db.schema import init_user_db
+from user_db.settings import get_or_create_node_id
+
 from groups_db.schema import init_groups_db
-from async_direct_database import init_direct_db
+from direct_db.schema import init_direct_db
 
 from settings import HTTP_PORT
 from .app import app

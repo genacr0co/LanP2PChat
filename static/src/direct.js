@@ -168,18 +168,7 @@ async function selectDirectChat(dm) {
     form.style.display = "flex";
     restoreDraftForCurrentChat();
 
-    try {
-        const res = await fetch(
-            `/api/direct/messages?chat_id=${encodeURIComponent(actualDm.chat_id)}`
-        );
-
-        const list = await res.json();
-
-        rendered.clear();
-        chat.innerHTML = "";
-
-        list.forEach(addDirectMessage);
-    } catch {}
+    await loadDirectHistory(actualDm.chat_id);
 
     updateTabs();
 

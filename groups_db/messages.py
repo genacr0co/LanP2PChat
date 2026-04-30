@@ -6,6 +6,85 @@ from .common import now_str, group_message_row_to_dict
 from .groups import get_group
 
 
+DEFAULT_MESSAGES_LIMIT = 40
+MAX_MESSAGES_LIMIT = 100
+
+
+def normalize_limit(limit):
+    try:
+        value = int(limit)
+    except Exception:
+        value = DEFAULT_MESSAGES_LIMIT
+
+    if value <= 0:
+        return DEFAULT_MESSAGES_LIMIT
+
+    return min(value, MAX_MESSAGES_LIMIT)
+
+
+def build_messages_page(rows, limit):
+    """
+    rows приходят из SQL в DESC-порядке.
+    Для фронта отдаём ASC-порядок: старые сверху, новые снизу.
+    """
+
+    has_more = len(rows) > limit
+
+    rows = rows[:limit]
+    rows = list(reversed(rows))
+
+    items = [
+        group_message_row_to_dict(row, mask_deleted=True)
+        for row in rows
+    ]
+
+    next_before_created_at = None
+    next_before_message_id = None
+
+    if items:
+        oldest = items[0]
+        next_before_created_at = oldest.get("created_at")
+        next_before_message_id = oldest.get("message_id")
+
+    return {
+        "items": items,
+        "has_more": has_more,
+        "next_before_created_at": next_before_created_at,
+        "next_before_message_id": next_before_message_id,
+    }
+
+
+async def group_message_duplicate_exists(
+    db,
+    room_id,
+    sender_id,
+    username,
+    message,
+    created_at,
+):
+    cursor = await db.execute("""
+        SELECT message_id
+        FROM group_messages
+        WHERE room_id = ?
+          AND sender_id = ?
+          AND username = ?
+          AND message = ?
+          AND created_at = ?
+        LIMIT 1
+    """, (
+        room_id,
+        sender_id,
+        username,
+        message,
+        created_at,
+    ))
+
+    row = await cursor.fetchone()
+    await cursor.close()
+
+    return row is not None
+
+
 async def save_group_message(data):
     if not isinstance(data, dict):
         return False
@@ -23,7 +102,34 @@ async def save_group_message(data):
     if not group.get("is_joined"):
         return False
 
+    message_id = data.get("message_id", "")
+    sender_id = data.get("sender_id", "")
+    username = data.get("username", "")
+    message = data.get("message", "")
+    created_at = data.get("created_at", "")
+
+    if not message_id:
+        return False
+
+    if not sender_id:
+        return False
+
+    if not created_at:
+        return False
+
     async with aiosqlite.connect(GROUPS_DB_PATH) as db:
+        duplicate_exists = await group_message_duplicate_exists(
+            db=db,
+            room_id=room_id,
+            sender_id=sender_id,
+            username=username,
+            message=message,
+            created_at=created_at,
+        )
+
+        if duplicate_exists:
+            return False
+
         cursor = await db.execute("""
             INSERT OR IGNORE INTO group_messages
             (
@@ -39,12 +145,12 @@ async def save_group_message(data):
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            data["message_id"],
+            message_id,
             room_id,
-            data["sender_id"],
-            data["username"],
-            data.get("message", ""),
-            data["created_at"],
+            sender_id,
+            username,
+            message,
+            created_at,
             1 if data.get("is_deleted") else 0,
             data.get("deleted_at") or "",
             data.get("deleted_by") or "",
@@ -105,6 +211,12 @@ async def get_group_message(message_id, include_deleted=True, mask_deleted=True)
 
 
 async def get_group_messages(room_id=None):
+    """
+    Старый метод оставляем для совместимости:
+    - sync пока может использовать полный список;
+    - старый frontend тоже не сломается.
+    """
+
     async with aiosqlite.connect(GROUPS_DB_PATH) as db:
         db.row_factory = aiosqlite.Row
 
@@ -126,7 +238,7 @@ async def get_group_messages(room_id=None):
                        deleted_by
                 FROM group_messages
                 WHERE room_id = ?
-                ORDER BY created_at ASC
+                ORDER BY created_at ASC, message_id ASC
             """, (room_id,))
         else:
             cursor = await db.execute("""
@@ -143,7 +255,7 @@ async def get_group_messages(room_id=None):
                 INNER JOIN groups g ON gm.room_id = g.room_id
                 WHERE g.is_joined = 1
                   AND g.is_deleted = 0
-                ORDER BY gm.created_at ASC
+                ORDER BY gm.created_at ASC, gm.message_id ASC
             """)
 
         rows = await cursor.fetchall()
@@ -153,6 +265,103 @@ async def get_group_messages(room_id=None):
             group_message_row_to_dict(row, mask_deleted=True)
             for row in rows
         ]
+
+
+async def get_group_messages_page(
+    room_id,
+    limit=DEFAULT_MESSAGES_LIMIT,
+    before_created_at=None,
+    before_message_id=None,
+):
+    """
+    Пагинация сообщений группы.
+
+    Логика как в Telegram:
+    - первый запрос без before_* возвращает последние сообщения;
+    - при скролле вверх фронт передаёт курсор самого старого сообщения;
+    - возвращаем более старые сообщения;
+    - items всегда в ASC-порядке для нормального рендера.
+    """
+
+    if not room_id:
+        return {
+            "items": [],
+            "has_more": False,
+            "next_before_created_at": None,
+            "next_before_message_id": None,
+        }
+
+    group = await get_group(room_id)
+
+    if not group or not group.get("is_joined"):
+        return {
+            "items": [],
+            "has_more": False,
+            "next_before_created_at": None,
+            "next_before_message_id": None,
+        }
+
+    page_limit = normalize_limit(limit)
+    sql_limit = page_limit + 1
+
+    has_cursor = bool(before_created_at and before_message_id)
+
+    async with aiosqlite.connect(GROUPS_DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
+        if has_cursor:
+            cursor = await db.execute("""
+                SELECT message_id,
+                       room_id,
+                       sender_id,
+                       username,
+                       message,
+                       created_at,
+                       is_deleted,
+                       deleted_at,
+                       deleted_by
+                FROM group_messages
+                WHERE room_id = ?
+                  AND (
+                        created_at < ?
+                        OR (
+                            created_at = ?
+                            AND message_id < ?
+                        )
+                  )
+                ORDER BY created_at DESC, message_id DESC
+                LIMIT ?
+            """, (
+                room_id,
+                before_created_at,
+                before_created_at,
+                before_message_id,
+                sql_limit,
+            ))
+        else:
+            cursor = await db.execute("""
+                SELECT message_id,
+                       room_id,
+                       sender_id,
+                       username,
+                       message,
+                       created_at,
+                       is_deleted,
+                       deleted_at,
+                       deleted_by
+                FROM group_messages
+                WHERE room_id = ?
+                ORDER BY created_at DESC, message_id DESC
+                LIMIT ?
+            """, (
+                room_id,
+                sql_limit,
+            ))
+
+        rows = await cursor.fetchall()
+        await cursor.close()
+
+    return build_messages_page(rows, page_limit)
 
 
 async def delete_group_message(message_id, room_id, deleted_by):

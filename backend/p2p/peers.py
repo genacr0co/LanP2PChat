@@ -1,6 +1,6 @@
 import time
 
-from async_user_database import get_user_settings
+from user_db.profile import get_user_settings
 
 from settings import HTTP_PORT
 from .. import state

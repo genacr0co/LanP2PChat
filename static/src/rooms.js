@@ -13,16 +13,19 @@ groupsTab.onclick = async () => {
     activeTab = "group";
     currentDirectChatId = null;
 
+    closeDirectSettingsModal();
+
     const room = rooms.get(currentRoomId) || rooms.get("general");
 
     if (room) {
         await selectRoom(room);
-    } else {
-        rendered.clear();
-        chat.innerHTML = "";
-        roomTitle.textContent = "Комнаты";
-        form.style.display = "none";
+        return;
     }
+
+    rendered.clear();
+    chat.innerHTML = "";
+    roomTitle.textContent = "Комнаты";
+    form.style.display = "none";
 
     updateTabs();
 };
@@ -270,6 +273,9 @@ async function selectRoom(room) {
     currentDirectChatId = null;
     currentRoomId = actualRoom.room_id;
 
+    closeGroupSettingsModal();
+    closeDirectSettingsModal();
+
     roomTitle.textContent = actualRoom.name;
 
     rendered.clear();
@@ -278,17 +284,19 @@ async function selectRoom(room) {
     if (actualRoom.is_joined === false) {
         form.style.display = "none";
         input.value = "";
+
         showJoinScreen(actualRoom);
         updateTabs();
+
         return;
     }
 
     form.style.display = "flex";
     restoreDraftForCurrentChat();
 
-    await loadHistory();
-
     updateTabs();
+
+    await loadHistory();
 
     if (typeof applySmileys === "function") {
         applySmileys(roomTitle);
@@ -297,6 +305,8 @@ async function selectRoom(room) {
 
 
 function showJoinScreen(room) {
+    rendered.clear();
+
     chat.innerHTML = `
         <div class="join-screen">
             <h2>${escapeHtml(room.name)}</h2>
@@ -447,6 +457,10 @@ function renderRooms() {
 
     if (activeTab === "dm") {
         for (const dm of directChats.values()) {
+            if (dm.is_deleted === true) {
+                continue;
+            }
+
             const item = document.createElement("div");
 
             item.className =

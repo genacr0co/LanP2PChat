@@ -7,7 +7,7 @@ from settings import HTTP_PORT
 
 from groups_db.groups import get_all_groups
 from groups_db.messages import get_group_messages
-from async_direct_database import get_direct_chats
+from direct_db.chats import get_direct_chats
 
 from .app import app
 from . import state

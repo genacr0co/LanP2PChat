@@ -94,6 +94,45 @@
     text-align: right;
 }
 
+/* Messages skeleton */
+
+.messages-skeleton {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 4px 0 12px;
+    pointer-events: none;
+}
+
+.skeleton-bubble {
+    width: min(58%, 420px);
+    height: 38px;
+    border-radius: 16px;
+    background: linear-gradient(
+        90deg,
+        rgba(31, 41, 55, 0.65),
+        rgba(55, 65, 81, 0.85),
+        rgba(31, 41, 55, 0.65)
+    );
+    background-size: 220% 100%;
+    animation: messageSkeletonPulse 1.15s linear infinite;
+}
+
+.skeleton-bubble.short {
+    width: min(42%, 300px);
+}
+
+@keyframes messageSkeletonPulse {
+    0% {
+        background-position: 120% 0;
+    }
+
+    100% {
+        background-position: -120% 0;
+    }
+}
+
 /* Deleted / masked messages */
 
 .deleted-message-row {
@@ -195,6 +234,14 @@
 
     .bubble .time {
         margin-left: 24px;
+    }
+
+    .skeleton-bubble {
+        width: 72%;
+    }
+
+    .skeleton-bubble.short {
+        width: 54%;
     }
 
     .message-context-menu {

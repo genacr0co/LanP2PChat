@@ -1,7 +1,7 @@
 from fastapi.responses import FileResponse
 
 from settings import STATIC_DIR, HTTP_PORT
-from async_user_database import get_user_settings, save_user_settings
+from user_db.profile import get_user_settings, save_user_settings
 
 from .app import app
 from . import state

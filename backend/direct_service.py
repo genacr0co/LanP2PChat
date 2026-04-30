@@ -1,8 +1,11 @@
-from async_direct_database import (
+from direct_db.chats import (
     save_direct_chat,
+    apply_direct_chat_delete,
+)
+
+from direct_db.messages import (
     save_direct_message,
     apply_direct_message_delete,
-    apply_direct_chat_delete,
 )
 
 from .utils import validate_direct_chat, validate_direct_message

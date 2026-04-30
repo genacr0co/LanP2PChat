@@ -3,7 +3,8 @@ from datetime import datetime
 
 from fastapi.responses import JSONResponse
 
-from async_user_database import get_user_settings
+from user_db.profile import get_user_settings
+
 from groups_db.groups import (
     create_group,
     get_group,
@@ -17,6 +18,7 @@ from groups_db.groups import (
 from groups_db.messages import (
     delete_group_message,
     get_group_messages,
+    get_group_messages_page,
 )
 
 from groups_db.sync import get_sync_payload
@@ -187,7 +189,23 @@ async def api_group_rename(data: dict):
 
 
 @app.get("/api/messages")
-async def api_messages(room_id: str = None):
+async def api_messages(
+    room_id: str = None,
+    page: int = 0,
+    limit: int = 40,
+    before_created_at: str = None,
+    before_message_id: str = None,
+):
+    if page:
+        payload = await get_group_messages_page(
+            room_id=room_id,
+            limit=limit,
+            before_created_at=before_created_at,
+            before_message_id=before_message_id,
+        )
+
+        return JSONResponse(payload)
+
     messages = await get_group_messages(room_id)
     return JSONResponse(messages)
 
