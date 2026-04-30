@@ -6,7 +6,6 @@ from fastapi import WebSocket, WebSocketDisconnect
 from settings import HTTP_PORT
 
 from groups_db.groups import get_all_groups
-from groups_db.messages import get_group_messages
 from direct_db.chats import get_direct_chats
 
 from .app import app
@@ -16,6 +15,10 @@ from .p2p.peers import (
     add_or_update_peer as _add_or_update_peer,
     touch_peer as _touch_peer,
 )
+
+
+def _safe_json(packet):
+    return json.dumps(packet, ensure_ascii=False)
 
 
 def _get_packet_data(packet):
@@ -148,6 +151,18 @@ def _learn_peer_from_websocket_packet(websocket, packet):
 
 @app.websocket("/ws")
 async def p2p_ws(websocket: WebSocket):
+    """
+    P2P WebSocket между устройствами.
+
+    Сюда приходят пакеты от других клиентов:
+    - сообщения групп;
+    - личные сообщения;
+    - группы;
+    - sync-пакеты;
+    - discovery-like пакеты.
+
+    Этот сокет не связан напрямую с UI.
+    """
     await websocket.accept()
 
     peer_node_id = None
@@ -158,7 +173,11 @@ async def p2p_ws(websocket: WebSocket):
 
             try:
                 packet = json.loads(text)
+            except Exception as e:
+                print("[P2P WS JSON ERROR]", e)
+                continue
 
+            try:
                 learned = _learn_peer_from_websocket_packet(websocket, packet)
 
                 extracted_node_id = _extract_peer_node_id(packet)
@@ -171,7 +190,7 @@ async def p2p_ws(websocket: WebSocket):
                 await handle_packet(packet)
 
             except Exception as e:
-                print("[P2P WS ERROR]", e)
+                print("[P2P WS HANDLE ERROR]", e)
 
     except WebSocketDisconnect:
         pass
@@ -183,6 +202,25 @@ async def p2p_ws(websocket: WebSocket):
 
 @app.websocket("/ui/ws")
 async def ui_ws(websocket: WebSocket):
+    """
+    WebSocket между backend и локальным frontend.
+
+    ВАЖНО:
+    Историю сообщений здесь больше НЕ отправляем.
+
+    Почему:
+    - пагинация уже грузит историю через HTTP API;
+    - если здесь отправлять старые сообщения, frontend считает их realtime;
+    - из-за этого старые сообщения появляются после новых;
+    - БД при этом может быть абсолютно нормальной, без дублей.
+
+    Поэтому /ui/ws при подключении отправляет только:
+    - список групп;
+    - список direct-чats;
+    - сигнал готовности UI-сокета.
+
+    Новые сообщения дальше приходят через notify_ui().
+    """
     state.ui_loop = asyncio.get_running_loop()
 
     await websocket.accept()
@@ -192,26 +230,26 @@ async def ui_ws(websocket: WebSocket):
 
     try:
         rooms = await get_all_groups(include_not_joined=True)
-        messages = await get_group_messages()
         direct_chats = await get_direct_chats()
 
         for room in rooms:
-            await websocket.send_text(json.dumps({
+            await websocket.send_text(_safe_json({
                 "type": "room",
                 "data": room,
-            }, ensure_ascii=False))
-
-        for msg in messages:
-            await websocket.send_text(json.dumps({
-                "type": "message",
-                "data": msg,
-            }, ensure_ascii=False))
+            }))
 
         for chat in direct_chats:
-            await websocket.send_text(json.dumps({
+            await websocket.send_text(_safe_json({
                 "type": "direct_chat",
                 "data": chat,
-            }, ensure_ascii=False))
+            }))
+
+        await websocket.send_text(_safe_json({
+            "type": "ui_ready",
+            "data": {
+                "messages_from_socket": False,
+            },
+        }))
 
         while True:
             await websocket.receive_text()
