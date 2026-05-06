@@ -13,6 +13,8 @@ async def init_groups_db():
                 name TEXT NOT NULL,
                 unique_name TEXT NOT NULL DEFAULT '',
                 password_hash TEXT NOT NULL DEFAULT '',
+                password_version INTEGER NOT NULL DEFAULT 0,
+                unlocked_password_version INTEGER NOT NULL DEFAULT 0,
                 created_by TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 is_creator INTEGER NOT NULL DEFAULT 0,
@@ -29,6 +31,20 @@ async def init_groups_db():
             "groups",
             "has_password",
             "has_password INTEGER NOT NULL DEFAULT 0",
+        )
+
+        await ensure_column(
+            db,
+            "groups",
+            "password_version",
+            "password_version INTEGER NOT NULL DEFAULT 0",
+        )
+
+        await ensure_column(
+            db,
+            "groups",
+            "unlocked_password_version",
+            "unlocked_password_version INTEGER NOT NULL DEFAULT 0",
         )
 
         await ensure_column(
@@ -119,6 +135,8 @@ async def init_groups_db():
                 name,
                 unique_name,
                 password_hash,
+                password_version,
+                unlocked_password_version,
                 created_by,
                 created_at,
                 is_creator,
@@ -128,12 +146,14 @@ async def init_groups_db():
                 deleted_at,
                 deleted_by
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             "general",
             "Общий чат",
             "general",
             "",
+            0,
+            0,
             "system",
             now_str(),
             1,
@@ -152,14 +172,10 @@ async def init_groups_db():
                 is_joined = 1,
                 is_creator = 1,
                 password_hash = '',
+                password_version = 0,
+                unlocked_password_version = 0,
                 has_password = 0
             WHERE room_id = 'general'
-        """)
-
-        await db.execute("""
-            UPDATE groups
-            SET password_hash = '',
-                has_password = 0
         """)
 
         await db.commit()

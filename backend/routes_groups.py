@@ -13,6 +13,8 @@ from groups_db.groups import (
     leave_group,
     delete_group,
     rename_group,
+    update_group_password,
+    check_group_password,
 )
 
 from groups_db.messages import (
@@ -30,12 +32,20 @@ from .group_service import (
     receive_message,
     receive_room,
     receive_group_message_delete,
+    make_ui_group_copy,
 )
+
+
+def make_ui_rooms(rooms):
+    return [make_ui_group_copy(room) for room in rooms]
 
 
 @app.get("/api/rooms")
 async def api_rooms():
-    rooms = await get_all_groups(include_not_joined=True)
+    rooms = await get_all_groups(
+        include_not_joined=True,
+        include_password_hash=False,
+    )
     return JSONResponse(rooms)
 
 
@@ -43,6 +53,7 @@ async def api_rooms():
 async def api_create_room(data: dict):
     name = data.get("name", "").strip()
     unique_name = data.get("unique_name", "").strip().lower()
+    password = data.get("password", "")
 
     if not name:
         return {
@@ -52,7 +63,7 @@ async def api_create_room(data: dict):
 
     room = await create_group(
         name=name,
-        password="",
+        password=password,
         created_by=state.NODE_ID,
         unique_name=unique_name,
     )
@@ -61,12 +72,29 @@ async def api_create_room(data: dict):
 
     return {
         "ok": True,
-        "room": room,
+        "room": make_ui_group_copy(room),
     }
 
 
 @app.post("/api/rooms/check")
 async def api_check_room(data: dict):
+    room_id = data.get("room_id", "")
+    password = data.get("password", "")
+
+    if not room_id:
+        return {
+            "ok": False,
+            "error": "empty_room_id",
+        }
+
+    valid = await check_group_password(room_id, password)
+
+    if not valid:
+        return {
+            "ok": False,
+            "error": "wrong_password",
+        }
+
     return {
         "ok": True,
     }
@@ -75,6 +103,7 @@ async def api_check_room(data: dict):
 @app.post("/api/groups/join")
 async def api_group_join(data: dict):
     room_id = data.get("room_id", "")
+    password = data.get("password", "")
 
     if not room_id:
         return {
@@ -82,7 +111,7 @@ async def api_group_join(data: dict):
             "error": "empty_room_id",
         }
 
-    group = await get_group(room_id)
+    group = await get_group(room_id, include_password_hash=True)
 
     if not group:
         return {
@@ -93,20 +122,35 @@ async def api_group_join(data: dict):
     if group.get("is_joined"):
         return {
             "ok": True,
-            "room": group,
+            "room": make_ui_group_copy(group),
         }
 
-    joined = await join_group(room_id)
+    if group.get("has_password") and not group.get("is_password_unlocked"):
+        if not password:
+            return {
+                "ok": False,
+                "error": "password_required",
+            }
+
+    joined = await join_group(room_id, password=password)
 
     if not joined:
+        if group.get("has_password"):
+            return {
+                "ok": False,
+                "error": "wrong_password",
+            }
+
         return {
             "ok": False,
             "error": "join_failed",
         }
 
+    room = await get_group(room_id, include_password_hash=False)
+
     return {
         "ok": True,
-        "room": await get_group(room_id),
+        "room": room,
     }
 
 
@@ -121,6 +165,9 @@ async def api_group_leave(data: dict):
         }
 
     result = await leave_group(room_id)
+
+    if result.get("room"):
+        result["room"] = make_ui_group_copy(result["room"])
 
     if not result.get("ok"):
         return result
@@ -150,6 +197,7 @@ async def api_group_delete(data: dict):
 
     if deleted_room:
         await receive_room(deleted_room, forward=True)
+        result["room"] = make_ui_group_copy(deleted_room)
 
     return result
 
@@ -184,6 +232,36 @@ async def api_group_rename(data: dict):
 
     if renamed_room:
         await receive_room(renamed_room, forward=True)
+        result["room"] = make_ui_group_copy(renamed_room)
+
+    return result
+
+
+@app.post("/api/groups/password")
+async def api_group_password(data: dict):
+    room_id = data.get("room_id", "")
+    password = data.get("password", "")
+
+    if not room_id:
+        return {
+            "ok": False,
+            "error": "empty_room_id",
+        }
+
+    result = await update_group_password(
+        room_id=room_id,
+        password=password,
+        updated_by=state.NODE_ID,
+    )
+
+    if not result.get("ok"):
+        return result
+
+    room = result.get("room")
+
+    if room:
+        await receive_room(room, forward=True)
+        result["room"] = make_ui_group_copy(room)
 
     return result
 

@@ -42,8 +42,18 @@ const cancelNameBtn = document.getElementById("cancelNameBtn");
 
 const roomModal = document.getElementById("roomModal");
 const roomNameInput = document.getElementById("roomNameInput");
+const roomPasswordInput = document.getElementById("roomPasswordInput");
 const saveRoomBtn = document.getElementById("saveRoomBtn");
 const cancelRoomBtn = document.getElementById("cancelRoomBtn");
+
+const joinGroupModal = document.getElementById("joinGroupModal");
+const joinGroupModalTitle = document.getElementById("joinGroupModalTitle");
+const joinGroupModalText = document.getElementById("joinGroupModalText");
+const joinGroupModalPasswordInput = document.getElementById("joinGroupModalPasswordInput");
+const joinGroupModalError = document.getElementById("joinGroupModalError");
+const joinGroupModalSaveBtn = document.getElementById("joinGroupModalSaveBtn");
+const joinGroupModalCancelBtn = document.getElementById("joinGroupModalCancelBtn");
+let pendingJoinRoomId = null;
 
 const groupSettingsBtn = document.getElementById("groupSettingsBtn");
 const groupSettingsModal = document.getElementById("groupSettingsModal");
@@ -54,6 +64,13 @@ const groupMuteBtn = document.getElementById("groupMuteBtn");
 const groupLeaveBtn = document.getElementById("groupLeaveBtn");
 
 const groupRenameBtn = document.getElementById("groupRenameBtn");
+
+const groupPasswordBtn = document.getElementById("groupPasswordBtn");
+const groupPasswordForm = document.getElementById("groupPasswordForm");
+const groupPasswordInput = document.getElementById("groupPasswordInput");
+const saveGroupPasswordBtn = document.getElementById("saveGroupPasswordBtn");
+const cancelGroupPasswordBtn = document.getElementById("cancelGroupPasswordBtn");
+const groupPasswordHint = document.getElementById("groupPasswordHint");
 const groupRenameForm = document.getElementById("groupRenameForm");
 const groupRenameInput = document.getElementById("groupRenameInput");
 const saveGroupRenameBtn = document.getElementById("saveGroupRenameBtn");

@@ -93,6 +93,15 @@ function canLeaveRoom(room) {
 }
 
 
+function roomNeedsPassword(room) {
+    return !!(
+        room &&
+        room.has_password === true &&
+        room.is_password_unlocked !== true
+    );
+}
+
+
 function getCurrentGroupRoom() {
     if (activeTab !== "group") {
         return null;
@@ -288,6 +297,10 @@ async function selectRoom(room) {
         showJoinScreen(actualRoom);
         updateTabs();
 
+        if (roomNeedsPassword(actualRoom)) {
+            openJoinGroupPasswordModal(actualRoom);
+        }
+
         return;
     }
 
@@ -307,11 +320,21 @@ async function selectRoom(room) {
 function showJoinScreen(room) {
     rendered.clear();
 
+    const isProtected = roomNeedsPassword(room);
+
+    const description = isProtected
+        ? "Эта группа защищена паролем. Нажмите кнопку и введите пароль, чтобы вступить."
+        : "Вы ещё не вступили в эту группу.";
+
+    const buttonText = isProtected
+        ? "Ввести пароль и вступить"
+        : "Вступить в группу";
+
     chat.innerHTML = `
         <div class="join-screen">
             <h2>${escapeHtml(room.name)}</h2>
-            <p>Вы ещё не вступили в эту группу.</p>
-            <button id="joinSelectedGroupBtn" type="button">Вступить в группу</button>
+            <p>${escapeHtml(description)}</p>
+            <button id="joinSelectedGroupBtn" type="button">${escapeHtml(buttonText)}</button>
         </div>
     `;
 
@@ -319,6 +342,11 @@ function showJoinScreen(room) {
 
     if (btn) {
         btn.onclick = async () => {
+            if (roomNeedsPassword(room)) {
+                openJoinGroupPasswordModal(room);
+                return;
+            }
+
             await joinGroup(room);
         };
     }
@@ -327,7 +355,6 @@ function showJoinScreen(room) {
         applySmileys(chat);
     }
 }
-
 
 async function loadRooms() {
     try {
@@ -367,6 +394,10 @@ async function loadRooms() {
 createRoomBtn.onclick = () => {
     roomNameInput.value = "";
 
+    if (roomPasswordInput) {
+        roomPasswordInput.value = "";
+    }
+
     roomModal.classList.add("show");
     roomNameInput.focus();
 };
@@ -379,6 +410,7 @@ cancelRoomBtn.onclick = () => {
 
 saveRoomBtn.onclick = async () => {
     const name = roomNameInput.value.trim();
+    const password = roomPasswordInput ? roomPasswordInput.value : "";
 
     if (!name) {
         roomNameInput.focus();
@@ -393,6 +425,7 @@ saveRoomBtn.onclick = async () => {
             },
             body: JSON.stringify({
                 name,
+                password,
             }),
         });
 
@@ -421,6 +454,15 @@ roomNameInput.addEventListener("keydown", (e) => {
 });
 
 
+if (roomPasswordInput) {
+    roomPasswordInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            saveRoomBtn.click();
+        }
+    });
+}
+
+
 function renderRooms() {
     roomsList.innerHTML = "";
 
@@ -437,12 +479,16 @@ function renderRooms() {
                 (room.room_id === currentRoomId ? " active" : "") +
                 (room.is_joined === false ? " not-joined" : "");
 
+            const lockMark = room.has_password === true
+                ? `<span class="room-lock-mark" title="Группа защищена паролем">🔒</span>`
+                : "";
+
             const joinMark = room.is_joined === false
                 ? `<span class="join-mark">Вступить</span>`
                 : "";
 
             item.innerHTML = `
-                <div class="room-name">${escapeHtml(room.name)}</div>
+                <div class="room-name">${lockMark}${escapeHtml(room.name)}</div>
 
                 <div class="room-actions">
                     ${joinMark}
@@ -483,8 +529,135 @@ function renderRooms() {
 }
 
 
-async function joinGroup(group) {
+function setJoinGroupModalError(message) {
+    if (joinGroupModalError) {
+        joinGroupModalError.textContent = message || "";
+    }
+}
+
+
+function openJoinGroupPasswordModal(room) {
+    if (!room || !room.room_id) {
+        return;
+    }
+
+    pendingJoinRoomId = room.room_id;
+
+    if (joinGroupModalTitle) {
+        joinGroupModalTitle.textContent = `Вступить в «${room.name}»`;
+    }
+
+    if (joinGroupModalText) {
+        joinGroupModalText.textContent = "Эта группа защищена паролем. Введите пароль группы, чтобы вступить.";
+    }
+
+    if (joinGroupModalPasswordInput) {
+        joinGroupModalPasswordInput.value = "";
+    }
+
+    setJoinGroupModalError("");
+
+    if (joinGroupModal) {
+        joinGroupModal.classList.add("show");
+    }
+
+    setTimeout(() => {
+        if (joinGroupModalPasswordInput) {
+            joinGroupModalPasswordInput.focus();
+        }
+    }, 50);
+}
+
+
+function closeJoinGroupPasswordModal() {
+    pendingJoinRoomId = null;
+
+    if (joinGroupModal) {
+        joinGroupModal.classList.remove("show");
+    }
+
+    if (joinGroupModalPasswordInput) {
+        joinGroupModalPasswordInput.value = "";
+    }
+
+    setJoinGroupModalError("");
+}
+
+
+async function submitJoinGroupPasswordModal() {
+    if (!pendingJoinRoomId) {
+        closeJoinGroupPasswordModal();
+        return;
+    }
+
+    const room = rooms.get(pendingJoinRoomId);
+
+    if (!room) {
+        closeJoinGroupPasswordModal();
+        return;
+    }
+
+    const password = joinGroupModalPasswordInput
+        ? joinGroupModalPasswordInput.value
+        : "";
+
+    if (!password.trim()) {
+        setJoinGroupModalError("Введите пароль группы.");
+
+        if (joinGroupModalPasswordInput) {
+            joinGroupModalPasswordInput.focus();
+        }
+
+        return;
+    }
+
+    await joinGroup(room, password, {
+        errorTarget: "modal",
+    });
+}
+
+
+async function joinGroup(group, passwordOverride = null, options = {}) {
     if (!group || !group.room_id) {
+        return;
+    }
+
+    const useModalErrors = options.errorTarget === "modal";
+    const passwordInput = document.getElementById("joinGroupPasswordInput");
+    const passwordError = document.getElementById("joinGroupPasswordError");
+
+    const password = passwordOverride !== null
+        ? passwordOverride
+        : (passwordInput ? passwordInput.value : "");
+
+    if (passwordError) {
+        passwordError.textContent = "";
+    }
+
+    if (useModalErrors) {
+        setJoinGroupModalError("");
+    }
+
+    if (roomNeedsPassword(group) && !password.trim()) {
+        if (useModalErrors) {
+            setJoinGroupModalError("Введите пароль группы.");
+
+            if (joinGroupModalPasswordInput) {
+                joinGroupModalPasswordInput.focus();
+            }
+
+            return;
+        }
+
+        if (passwordError) {
+            passwordError.textContent = "Введите пароль группы.";
+        }
+
+        if (passwordInput) {
+            passwordInput.focus();
+        }
+
+        openJoinGroupPasswordModal(group);
         return;
     }
 
@@ -496,24 +669,92 @@ async function joinGroup(group) {
             },
             body: JSON.stringify({
                 room_id: group.room_id,
+                password,
             }),
         });
 
         const data = await res.json();
 
         if (!data.ok) {
+            if (data.error === "password_required") {
+                if (useModalErrors) {
+                    setJoinGroupModalError("Введите пароль группы.");
+
+                    if (joinGroupModalPasswordInput) {
+                        joinGroupModalPasswordInput.focus();
+                    }
+
+                    return;
+                }
+
+                if (passwordError) {
+                    passwordError.textContent = "Введите пароль группы.";
+                }
+
+                if (passwordInput) {
+                    passwordInput.focus();
+                }
+
+                openJoinGroupPasswordModal(group);
+                return;
+            }
+
+            if (data.error === "wrong_password") {
+                if (useModalErrors) {
+                    setJoinGroupModalError("Неверный пароль.");
+
+                    if (joinGroupModalPasswordInput) {
+                        joinGroupModalPasswordInput.focus();
+                        joinGroupModalPasswordInput.select();
+                    }
+
+                    return;
+                }
+
+                if (passwordError) {
+                    passwordError.textContent = "Неверный пароль.";
+                } else {
+                    alert("Неверный пароль группы");
+                }
+
+                if (passwordInput) {
+                    passwordInput.focus();
+                    passwordInput.select();
+                }
+
+                openJoinGroupPasswordModal(group);
+                return;
+            }
+
             alert("Не удалось вступить в группу");
             return;
         }
 
-        addRoom(data.room);
+        if (data.room) {
+            addRoom(data.room);
+            closeJoinGroupPasswordModal();
+            await selectRoom(data.room);
+            return;
+        }
 
-        await selectRoom(data.room);
+        const fallbackRoom = {
+            ...group,
+            is_joined: true,
+            is_password_unlocked: true,
+        };
+
+        addRoom(fallbackRoom);
+        closeJoinGroupPasswordModal();
+        await selectRoom(fallbackRoom);
     } catch {
+        if (useModalErrors) {
+            setJoinGroupModalError("Ошибка вступления в группу.");
+            return;
+        }
+
         alert("Ошибка вступления в группу");
     }
 }
-
 
 async function leaveSelectedRoom(room) {
     if (!canLeaveRoom(room)) {
@@ -589,6 +830,7 @@ function openGroupSettingsModal() {
     updateGroupLeaveButton(room);
     updateOwnerActions(room);
     hideGroupRenameForm();
+    hideGroupPasswordForm();
 
     if (groupMembersList) {
         groupMembersList.textContent = "Список участников появится позже.";
@@ -604,6 +846,7 @@ function closeGroupSettingsModal() {
     }
 
     hideGroupRenameForm();
+    hideGroupPasswordForm();
 }
 
 
@@ -638,8 +881,19 @@ function updateOwnerActions(room) {
         groupRenameBtn.style.display = canEdit ? "inline-flex" : "none";
     }
 
+    if (groupPasswordBtn) {
+        groupPasswordBtn.style.display = canEdit ? "inline-flex" : "none";
+        groupPasswordBtn.textContent = room && room.has_password
+            ? "🔑 Изменить пароль группы"
+            : "🔑 Поставить пароль группы";
+    }
+
     if (groupRenameForm) {
         groupRenameForm.classList.remove("show");
+    }
+
+    if (groupPasswordForm) {
+        groupPasswordForm.classList.remove("show");
     }
 
     if (groupDeleteBtn) {
@@ -703,6 +957,8 @@ function showGroupRenameForm() {
     if (!canEditRoom(room)) {
         return;
     }
+
+    hideGroupPasswordForm();
 
     if (groupRenameInput) {
         groupRenameInput.value = room.name || "";
@@ -802,6 +1058,118 @@ async function saveGroupRename() {
 }
 
 
+function showGroupPasswordForm() {
+    const room = getCurrentGroupRoom();
+
+    if (!canEditRoom(room)) {
+        return;
+    }
+
+    hideGroupRenameForm();
+
+    if (groupPasswordInput) {
+        groupPasswordInput.value = "";
+        groupPasswordInput.placeholder = room.has_password
+            ? "Новый пароль или пусто, чтобы убрать"
+            : "Пароль группы";
+    }
+
+    if (groupPasswordHint) {
+        groupPasswordHint.textContent = room.has_password
+            ? "Оставьте поле пустым и нажмите сохранить, чтобы убрать пароль. После смены пароля участники введут его заново."
+            : "После установки пароля новые участники должны будут ввести его при вступлении.";
+    }
+
+    if (groupPasswordForm) {
+        groupPasswordForm.classList.add("show");
+    }
+
+    setTimeout(() => {
+        if (groupPasswordInput) {
+            groupPasswordInput.focus();
+        }
+    }, 50);
+}
+
+
+function hideGroupPasswordForm() {
+    if (groupPasswordForm) {
+        groupPasswordForm.classList.remove("show");
+    }
+
+    if (groupPasswordInput) {
+        groupPasswordInput.value = "";
+    }
+}
+
+
+async function saveGroupPassword() {
+    const room = getCurrentGroupRoom();
+
+    if (!canEditRoom(room)) {
+        return;
+    }
+
+    const password = groupPasswordInput ? groupPasswordInput.value : "";
+
+    if (!password.trim() && room.has_password !== true) {
+        alert("Введите пароль или отмените действие.");
+        if (groupPasswordInput) {
+            groupPasswordInput.focus();
+        }
+        return;
+    }
+
+    if (!password.trim() && room.has_password === true) {
+        const confirmed = confirm(
+            `Убрать пароль у группы "${room.name}"?\n\n` +
+            "После этого новые участники смогут вступать без пароля."
+        );
+
+        if (!confirmed) {
+            return;
+        }
+    }
+
+    try {
+        const res = await fetch("/api/groups/password", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                room_id: room.room_id,
+                password,
+            }),
+        });
+
+        const data = await res.json();
+
+        if (!data.ok) {
+            if (data.error === "not_creator") {
+                alert("Менять пароль может только создатель группы.");
+                return;
+            }
+
+            if (data.error === "cannot_change_general_password") {
+                alert("На общий чат нельзя поставить пароль.");
+                return;
+            }
+
+            alert("Не удалось изменить пароль группы");
+            return;
+        }
+
+        addRoom(data.room);
+        hideGroupPasswordForm();
+        updateOwnerActions(data.room);
+        renderRooms();
+    } catch {
+        alert("Ошибка изменения пароля группы");
+    }
+}
+
+
 if (groupSettingsBtn) {
     groupSettingsBtn.onclick = () => {
         if (activeTab === "group") {
@@ -857,6 +1225,13 @@ if (groupRenameBtn) {
 }
 
 
+if (groupPasswordBtn) {
+    groupPasswordBtn.onclick = () => {
+        showGroupPasswordForm();
+    };
+}
+
+
 if (saveGroupRenameBtn) {
     saveGroupRenameBtn.onclick = saveGroupRename;
 }
@@ -865,6 +1240,18 @@ if (saveGroupRenameBtn) {
 if (cancelGroupRenameBtn) {
     cancelGroupRenameBtn.onclick = () => {
         hideGroupRenameForm();
+    };
+}
+
+
+if (saveGroupPasswordBtn) {
+    saveGroupPasswordBtn.onclick = saveGroupPassword;
+}
+
+
+if (cancelGroupPasswordBtn) {
+    cancelGroupPasswordBtn.onclick = () => {
+        hideGroupPasswordForm();
     };
 }
 
@@ -879,6 +1266,21 @@ if (groupRenameInput) {
         if (e.key === "Escape") {
             e.preventDefault();
             hideGroupRenameForm();
+        }
+    });
+}
+
+
+if (groupPasswordInput) {
+    groupPasswordInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            saveGroupPassword();
+        }
+
+        if (e.key === "Escape") {
+            e.preventDefault();
+            hideGroupPasswordForm();
         }
     });
 }
@@ -901,6 +1303,44 @@ if (groupSettingsModal) {
     groupSettingsModal.onclick = (e) => {
         if (e.target === groupSettingsModal) {
             closeGroupSettingsModal();
+        }
+    };
+}
+
+
+if (joinGroupModalSaveBtn) {
+    joinGroupModalSaveBtn.onclick = () => {
+        submitJoinGroupPasswordModal();
+    };
+}
+
+
+if (joinGroupModalCancelBtn) {
+    joinGroupModalCancelBtn.onclick = () => {
+        closeJoinGroupPasswordModal();
+    };
+}
+
+
+if (joinGroupModalPasswordInput) {
+    joinGroupModalPasswordInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            submitJoinGroupPasswordModal();
+        }
+
+        if (e.key === "Escape") {
+            e.preventDefault();
+            closeJoinGroupPasswordModal();
+        }
+    });
+}
+
+
+if (joinGroupModal) {
+    joinGroupModal.onclick = (e) => {
+        if (e.target === joinGroupModal) {
+            closeJoinGroupPasswordModal();
         }
     };
 }

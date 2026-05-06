@@ -1,0 +1,7 @@
+{
+  "latest_version": "1.0.3",
+  "title": "Доступна новая версия",
+  "message": "Исправили баг в Группах с паролем",
+  "installer_file_name": "LANP2PChat_Setup.exe",
+  "mandatory": false
+}

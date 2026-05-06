@@ -311,3 +311,9 @@
         min-height: 46px;
     }
 }
+.settings-form-hint {
+    margin: -2px 0 0;
+    color: #9ca3af;
+    font-size: 13px;
+    line-height: 1.35;
+}

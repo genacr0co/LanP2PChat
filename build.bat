@@ -27,7 +27,7 @@ if exist LANP2PChat.spec del LANP2PChat.spec
 
 call :progress 25 "Running PyInstaller..."
 
-pyinstaller --clean --onedir --noconfirm ^
+pyinstaller --clean --onedir --noconfirm --windowed ^
 --name LANP2PChat ^
 --icon "static\src\assets\logo_gers_new.ico" ^
 --add-data "static;static" ^
@@ -41,9 +41,11 @@ pyinstaller --clean --onedir --noconfirm ^
 --hidden-import=backend.group_service ^
 --hidden-import=backend.direct_service ^
 --hidden-import=backend.sync_service ^
+--hidden-import=backend.updater ^
 --hidden-import=backend.routes_core ^
 --hidden-import=backend.routes_groups ^
 --hidden-import=backend.routes_direct ^
+--hidden-import=backend.routes_update ^
 --hidden-import=backend.routes_ws ^
 --hidden-import=user_db ^
 --hidden-import=user_db.schema ^
@@ -61,6 +63,7 @@ pyinstaller --clean --onedir --noconfirm ^
 --hidden-import=direct_db.chats ^
 --hidden-import=direct_db.messages ^
 --hidden-import=settings ^
+--hidden-import=version ^
 --hidden-import=aiosqlite ^
 --hidden-import=websockets ^
 --hidden-import=websockets.legacy ^

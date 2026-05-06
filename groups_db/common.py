@@ -20,6 +20,8 @@ async def ensure_column(db, table_name, column_name, column_sql):
 
 
 def group_row_to_dict(row, include_password_hash=True):
+    has_password = bool(row["has_password"])
+
     data = {
         "room_id": row["room_id"],
         "name": row["name"],
@@ -28,14 +30,25 @@ def group_row_to_dict(row, include_password_hash=True):
         "created_at": row["created_at"],
         "is_creator": bool(row["is_creator"]),
         "is_joined": bool(row["is_joined"]),
-        "has_password": False,
+        "has_password": has_password,
+        "password_version": int(row["password_version"] or 0),
+        "unlocked_password_version": int(row["unlocked_password_version"] or 0),
         "is_deleted": bool(row["is_deleted"]),
         "deleted_at": row["deleted_at"] or "",
         "deleted_by": row["deleted_by"] or "",
     }
 
+    data["is_password_unlocked"] = (
+        not has_password
+        or data["is_creator"]
+        or (
+            data["password_version"] > 0
+            and data["unlocked_password_version"] >= data["password_version"]
+        )
+    )
+
     if include_password_hash:
-        data["password_hash"] = ""
+        data["password_hash"] = row["password_hash"] or ""
 
     return data
 

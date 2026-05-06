@@ -15,18 +15,28 @@ def make_public_group_copy(group):
     Копия группы для других peer.
 
     Важно:
-    - другой клиент НЕ должен автоматически становиться участником группы
-    - другой клиент НЕ должен становиться creator
-    - пароли пока полностью отключены
-    - поля удаления обязательно сохраняем, чтобы P2P-удаление дошло до других
+    - другой клиент НЕ должен автоматически становиться участником группы;
+    - другой клиент НЕ должен становиться creator;
+    - пароль в открытом виде никогда не отправляем;
+    - отправляем только password_hash/password_version, чтобы вход работал локально,
+      даже если создатель группы offline;
+    - поля удаления обязательно сохраняем, чтобы P2P-удаление дошло до других.
     """
 
     public_group = dict(group)
 
     public_group["is_creator"] = False
     public_group["is_joined"] = False
-    public_group["has_password"] = False
-    public_group["password_hash"] = ""
+    public_group["unlocked_password_version"] = 0
+
+    public_group["has_password"] = bool(group.get("has_password"))
+    public_group["password_hash"] = group.get("password_hash") or ""
+    public_group["password_version"] = int(group.get("password_version") or 0)
+
+    if public_group["has_password"] and not public_group["password_hash"]:
+        public_group["has_password"] = False
+        public_group["password_hash"] = ""
+        public_group["password_version"] = 0
 
     public_group["is_deleted"] = bool(group.get("is_deleted"))
     public_group["deleted_at"] = group.get("deleted_at") or ""
@@ -35,12 +45,25 @@ def make_public_group_copy(group):
     return public_group
 
 
+def make_ui_group_copy(group):
+    """
+    Копия группы для frontend.
+
+    UI не нужен password_hash. Проверку пароля делает backend локально.
+    """
+    ui_group = dict(group)
+    ui_group.pop("password_hash", None)
+    return ui_group
+
+
 def normalize_received_group(group):
     """
     Если группа пришла от другого peer — не доверяем полям is_joined/is_creator.
     Иначе чужая группа может автоматически стать joined.
 
-    Но полям удаления доверяем, потому что удаление должен получить каждый peer.
+    Но данным пароля/hash/version доверяем, потому что они нужны для локального
+    входа в группу без online-создателя.
+    Полям удаления тоже доверяем, потому что удаление должен получить каждый peer.
     """
 
     normalized = dict(group)
@@ -50,8 +73,21 @@ def normalize_received_group(group):
     if created_by != state.NODE_ID:
         normalized["is_creator"] = False
         normalized["is_joined"] = False
+        normalized["unlocked_password_version"] = 0
+
+    normalized["has_password"] = bool(normalized.get("has_password"))
+    normalized["password_hash"] = normalized.get("password_hash") or ""
+
+    try:
+        normalized["password_version"] = int(normalized.get("password_version") or 0)
+    except Exception:
+        normalized["password_version"] = 0
+
+    if normalized["has_password"] and not normalized["password_hash"]:
         normalized["has_password"] = False
         normalized["password_hash"] = ""
+        normalized["password_version"] = 0
+        normalized["unlocked_password_version"] = 0
 
     normalized["is_deleted"] = bool(normalized.get("is_deleted"))
     normalized["deleted_at"] = normalized.get("deleted_at") or ""
@@ -91,7 +127,7 @@ async def receive_group(data, forward=True):
 
     await notify_ui({
         "type": "group",
-        "data": data,
+        "data": make_ui_group_copy(data),
     })
 
     if forward:

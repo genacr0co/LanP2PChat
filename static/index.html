@@ -125,10 +125,34 @@
     <div class="modal-card">
         <h2>Создать группу</h2>
         <input id="roomNameInput" type="text" placeholder="Название группы">
+        <input id="roomPasswordInput" type="password" placeholder="Пароль (необязательно)">
 
         <div class="modal-actions">
             <button id="saveRoomBtn" type="button">Создать</button>
             <button id="cancelRoomBtn" type="button">Отмена</button>
+        </div>
+    </div>
+</div>
+
+<div id="joinGroupModal" class="modal">
+    <div class="modal-card join-password-modal-card">
+        <h2 id="joinGroupModalTitle">Вступить в группу</h2>
+        <p id="joinGroupModalText" class="join-modal-text">
+            Эта группа защищена паролем. Введите пароль, чтобы вступить.
+        </p>
+
+        <input
+            id="joinGroupModalPasswordInput"
+            type="password"
+            placeholder="Пароль группы"
+            autocomplete="current-password"
+        >
+
+        <p id="joinGroupModalError" class="join-modal-error"></p>
+
+        <div class="modal-actions">
+            <button id="joinGroupModalSaveBtn" type="button">Вступить</button>
+            <button id="joinGroupModalCancelBtn" type="button">Отмена</button>
         </div>
     </div>
 </div>
@@ -166,6 +190,10 @@
                 ✎ Переименовать группу
             </button>
 
+            <button id="groupPasswordBtn" class="settings-action-btn owner-only-action" type="button">
+                🔑 Поставить пароль группы
+            </button>
+
             <div id="groupRenameForm" class="group-rename-form">
                 <input
                     id="groupRenameInput"
@@ -176,6 +204,24 @@
                 <div class="group-rename-actions">
                     <button id="saveGroupRenameBtn" type="button">Сохранить</button>
                     <button id="cancelGroupRenameBtn" type="button">Отмена</button>
+                </div>
+            </div>
+
+            <div id="groupPasswordForm" class="group-rename-form">
+                <input
+                    id="groupPasswordInput"
+                    type="password"
+                    placeholder="Пароль группы"
+                    autocomplete="new-password"
+                >
+
+                <p id="groupPasswordHint" class="settings-form-hint">
+                    После установки пароля новые участники должны будут ввести его при вступлении.
+                </p>
+
+                <div class="group-rename-actions">
+                    <button id="saveGroupPasswordBtn" type="button">Сохранить</button>
+                    <button id="cancelGroupPasswordBtn" type="button">Отмена</button>
                 </div>
             </div>
 
