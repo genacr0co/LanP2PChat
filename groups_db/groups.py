@@ -12,6 +12,7 @@ GROUP_SELECT_COLUMNS = """
     room_id,
     name,
     unique_name,
+    description,
     password_hash,
     password_version,
     unlocked_password_version,
@@ -54,12 +55,13 @@ def _safe_int(value, default=0):
         return default
 
 
-async def create_group(name, password="", created_by="", unique_name=""):
+async def create_group(name, password="", created_by="", unique_name="", description=""):
     room_id = str(uuid.uuid4())
 
     if not unique_name:
         unique_name = name.strip().lower()
 
+    description = str(description or "").strip()
     password = normalize_password(password)
     has_password = bool(password)
     password_version = 1 if has_password else 0
@@ -69,6 +71,7 @@ async def create_group(name, password="", created_by="", unique_name=""):
         "room_id": room_id,
         "name": name,
         "unique_name": unique_name,
+        "description": description,
         "password_hash": password_hash,
         "password_version": password_version,
         "unlocked_password_version": password_version,
@@ -108,6 +111,7 @@ async def save_group(group):
     incoming_deleted_at = group.get("deleted_at") or ""
     incoming_deleted_by = group.get("deleted_by") or ""
 
+    incoming_description = str(group.get("description") or "").strip()
     incoming_password_hash = str(group.get("password_hash") or "")
     incoming_has_password = 1 if group.get("has_password") else 0
     incoming_password_version = _safe_int(group.get("password_version"), 0)
@@ -124,6 +128,7 @@ async def save_group(group):
         incoming_is_deleted = 0
         incoming_deleted_at = ""
         incoming_deleted_by = ""
+        incoming_description = "Общий чат для всех участников локальной сети."
         incoming_password_hash = ""
         incoming_has_password = 0
         incoming_password_version = 0
@@ -136,6 +141,7 @@ async def save_group(group):
                 room_id,
                 name,
                 unique_name,
+                description,
                 password_hash,
                 password_version,
                 unlocked_password_version,
@@ -148,7 +154,7 @@ async def save_group(group):
                 deleted_at,
                 deleted_by
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(room_id) DO UPDATE SET
                 name = CASE
                     WHEN excluded.is_deleted = 1 THEN groups.name
@@ -158,6 +164,11 @@ async def save_group(group):
                 unique_name = CASE
                     WHEN excluded.unique_name != '' THEN excluded.unique_name
                     ELSE groups.unique_name
+                END,
+
+                description = CASE
+                    WHEN groups.room_id = 'general' THEN 'Общий чат для всех участников локальной сети.'
+                    ELSE excluded.description
                 END,
 
                 password_hash = CASE
@@ -234,6 +245,7 @@ async def save_group(group):
             room_id,
             name,
             group.get("unique_name", ""),
+            incoming_description,
             incoming_password_hash,
             incoming_password_version,
             incoming_unlocked_password_version,
@@ -287,6 +299,7 @@ async def save_discovered_group(group):
         "room_id": room_id,
         "name": group.get("name", ""),
         "unique_name": group.get("unique_name", ""),
+        "description": str(group.get("description") or "").strip(),
         "password_hash": password_hash,
         "password_version": password_version,
         "unlocked_password_version": 0,
@@ -570,6 +583,77 @@ async def rename_group(room_id, new_name, updated_by):
     }
 
 
+
+async def update_group_description(room_id, description, updated_by):
+    if not room_id:
+        return {
+            "ok": False,
+            "error": "empty_room_id",
+        }
+
+    if room_id == "general":
+        return {
+            "ok": False,
+            "error": "cannot_change_general_description",
+        }
+
+    description = str(description or "").strip()
+
+    if len(description) > 500:
+        description = description[:500].strip()
+
+    group = await get_group(room_id, include_deleted=True)
+
+    if not group:
+        return {
+            "ok": False,
+            "error": "group_not_found",
+        }
+
+    if group.get("is_deleted"):
+        return {
+            "ok": False,
+            "error": "group_deleted",
+        }
+
+    if not group.get("is_creator"):
+        return {
+            "ok": False,
+            "error": "not_creator",
+        }
+
+    async with aiosqlite.connect(GROUPS_DB_PATH) as db:
+        cursor = await db.execute("""
+            UPDATE groups
+            SET description = ?
+            WHERE room_id = ?
+              AND room_id != 'general'
+              AND is_creator = 1
+              AND is_deleted = 0
+        """, (
+            description,
+            room_id,
+        ))
+
+        changed = cursor.rowcount > 0
+
+        await cursor.close()
+        await db.commit()
+
+    if not changed:
+        return {
+            "ok": False,
+            "error": "description_update_failed",
+        }
+
+    updated_group = await get_group(room_id, include_deleted=True)
+
+    return {
+        "ok": True,
+        "room": updated_group,
+    }
+
+
 async def update_group_password(room_id, password, updated_by):
     if not room_id:
         return {
@@ -733,6 +817,56 @@ async def get_joined_groups(include_password_hash=True):
         include_not_joined=False,
         include_password_hash=include_password_hash,
     )
+
+
+
+async def search_groups(query, limit=30, include_password_hash=False):
+    query = str(query or "").strip()
+
+    if not query:
+        return []
+
+    like = f"%{query.lower()}%"
+
+    try:
+        limit = int(limit)
+    except Exception:
+        limit = 30
+
+    limit = max(1, min(limit, 50))
+
+    async with aiosqlite.connect(GROUPS_DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+
+        cursor = await db.execute(f"""
+            SELECT {GROUP_SELECT_COLUMNS}
+            FROM groups
+            WHERE is_deleted = 0
+              AND room_id != 'general'
+              AND (
+                    lower(name) LIKE ?
+                 OR lower(unique_name) LIKE ?
+                 OR lower(description) LIKE ?
+              )
+            ORDER BY
+                is_joined DESC,
+                name COLLATE NOCASE ASC,
+                created_at ASC
+            LIMIT ?
+        """, (
+            like,
+            like,
+            like,
+            limit,
+        ))
+
+        rows = await cursor.fetchall()
+        await cursor.close()
+
+        return [
+            group_row_to_dict(row, include_password_hash=include_password_hash)
+            for row in rows
+        ]
 
 
 async def check_group_password(room_id, password):

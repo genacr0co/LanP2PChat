@@ -108,6 +108,7 @@ function clearCurrentDirectChatView() {
     rendered.clear();
     chat.innerHTML = "";
     roomTitle.textContent = "Личные сообщения";
+    updateRoomDescription(null);
     form.style.display = "none";
 }
 
@@ -161,6 +162,7 @@ async function selectDirectChat(dm) {
     closeDirectSettingsModal();
 
     roomTitle.textContent = actualDm.peer_name;
+    updateRoomDescription(null);
 
     rendered.clear();
     chat.innerHTML = "";

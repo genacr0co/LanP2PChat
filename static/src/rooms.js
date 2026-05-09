@@ -93,6 +93,35 @@ function canLeaveRoom(room) {
 }
 
 
+function getRoomDescriptionText(room) {
+    if (!room) {
+        return "";
+    }
+
+    if (room.room_id === "general") {
+        return room.description || "Общий чат для всех участников локальной сети.";
+    }
+
+    return (room.description || "").trim();
+}
+
+
+function updateRoomDescription(room) {
+    if (!roomDescription) {
+        return;
+    }
+
+    const text = getRoomDescriptionText(room);
+
+    roomDescription.textContent = text;
+    roomDescription.style.display = text ? "block" : "none";
+
+    if (typeof applySmileys === "function") {
+        applySmileys(roomDescription);
+    }
+}
+
+
 function roomNeedsPassword(room) {
     return !!(
         room &&
@@ -166,6 +195,7 @@ function removeRoomFromUi(roomId) {
             rendered.clear();
             chat.innerHTML = "";
             roomTitle.textContent = "Общий чат";
+            updateRoomDescription(null);
             form.style.display = "none";
         }
     }
@@ -286,6 +316,7 @@ async function selectRoom(room) {
     closeDirectSettingsModal();
 
     roomTitle.textContent = actualRoom.name;
+    updateRoomDescription(actualRoom);
 
     rendered.clear();
     chat.innerHTML = "";
@@ -322,6 +353,8 @@ function showJoinScreen(room) {
 
     const isProtected = roomNeedsPassword(room);
 
+    const roomDescriptionText = getRoomDescriptionText(room);
+
     const description = isProtected
         ? "Эта группа защищена паролем. Нажмите кнопку и введите пароль, чтобы вступить."
         : "Вы ещё не вступили в эту группу.";
@@ -333,6 +366,7 @@ function showJoinScreen(room) {
     chat.innerHTML = `
         <div class="join-screen">
             <h2>${escapeHtml(room.name)}</h2>
+            ${roomDescriptionText ? `<p class="join-group-description">${escapeHtml(roomDescriptionText)}</p>` : ""}
             <p>${escapeHtml(description)}</p>
             <button id="joinSelectedGroupBtn" type="button">${escapeHtml(buttonText)}</button>
         </div>
@@ -394,6 +428,10 @@ async function loadRooms() {
 createRoomBtn.onclick = () => {
     roomNameInput.value = "";
 
+    if (roomDescriptionInput) {
+        roomDescriptionInput.value = "";
+    }
+
     if (roomPasswordInput) {
         roomPasswordInput.value = "";
     }
@@ -410,6 +448,7 @@ cancelRoomBtn.onclick = () => {
 
 saveRoomBtn.onclick = async () => {
     const name = roomNameInput.value.trim();
+    const description = roomDescriptionInput ? roomDescriptionInput.value.trim() : "";
     const password = roomPasswordInput ? roomPasswordInput.value : "";
 
     if (!name) {
@@ -425,6 +464,7 @@ saveRoomBtn.onclick = async () => {
             },
             body: JSON.stringify({
                 name,
+                description,
                 password,
             }),
         });
@@ -463,41 +503,142 @@ if (roomPasswordInput) {
 }
 
 
+function getSortedRoomsForSidebar() {
+    return [...rooms.values()]
+        .filter((room) => {
+            if (!room || room.is_deleted === true) {
+                return false;
+            }
+
+            if (room.room_id === "general") {
+                return true;
+            }
+
+            return room.is_joined === true;
+        })
+        .sort((a, b) => {
+            const aIsGeneral = a && a.room_id === "general";
+            const bIsGeneral = b && b.room_id === "general";
+
+            if (aIsGeneral && !bIsGeneral) {
+                return -1;
+            }
+
+            if (!aIsGeneral && bIsGeneral) {
+                return 1;
+            }
+
+            const aName = (a && a.name ? a.name : "").toLocaleLowerCase();
+            const bName = (b && b.name ? b.name : "").toLocaleLowerCase();
+
+            return aName.localeCompare(bName, "ru");
+        });
+}
+
+
+function isGroupSearchActive() {
+    return activeTab === "group" && groupSearchQuery.trim().length > 0;
+}
+
+
+function updateGroupSearchPanel() {
+    if (!groupSearchPanel) {
+        return;
+    }
+
+    groupSearchPanel.style.display = activeTab === "group" ? "block" : "none";
+
+    if (groupSearchClearBtn) {
+        groupSearchClearBtn.style.display = groupSearchQuery ? "inline-flex" : "none";
+    }
+
+    if (groupSearchIcon) {
+        groupSearchIcon.style.display = groupSearchQuery ? "none" : "inline-flex";
+    }
+
+    if (!groupSearchStatus) {
+        return;
+    }
+
+    if (activeTab !== "group" || !groupSearchQuery.trim()) {
+        groupSearchStatus.textContent = "";
+        groupSearchStatus.style.display = "none";
+        return;
+    }
+
+    groupSearchStatus.style.display = "block";
+
+    if (groupSearchLoading) {
+        groupSearchStatus.textContent = "Поиск групп...";
+        return;
+    }
+
+    if (groupSearchResults.length === 0) {
+        groupSearchStatus.textContent = "Ничего не найдено";
+        return;
+    }
+
+    groupSearchStatus.textContent = `Найдено: ${groupSearchResults.length}`;
+}
+
+
+function renderRoomItem(room, options = {}) {
+    const isSearchResult = options.searchResult === true;
+    const item = document.createElement("div");
+
+    item.className =
+        "room-item" +
+        (room.room_id === currentRoomId ? " active" : "") +
+        (room.is_joined === false ? " not-joined" : "") +
+        (isSearchResult ? " search-result" : "");
+
+    const lockMark = room.has_password === true
+        ? `<span class="room-lock-mark" title="Группа защищена паролем">🔒</span>`
+        : "";
+
+    const joinMark = room.is_joined === false
+        ? `<span class="join-mark">Вступить</span>`
+        : "";
+
+    const description = getRoomDescriptionText(room);
+    const descriptionHtml = description
+        ? `<div class="room-subtitle">${escapeHtml(description)}</div>`
+        : "";
+
+    item.innerHTML = `
+        <div class="room-info">
+            <div class="room-name">${lockMark}${escapeHtml(room.name)}</div>
+            ${descriptionHtml}
+        </div>
+
+        <div class="room-actions">
+            ${joinMark}
+        </div>
+    `;
+
+    item.onclick = () => selectRoom(room);
+
+    return item;
+}
+
+
 function renderRooms() {
     roomsList.innerHTML = "";
+    updateGroupSearchPanel();
 
     if (activeTab === "group") {
-        for (const room of rooms.values()) {
+        const list = isGroupSearchActive()
+            ? groupSearchResults
+            : getSortedRoomsForSidebar();
+
+        for (const room of list) {
             if (room.is_deleted === true) {
                 continue;
             }
 
-            const item = document.createElement("div");
-
-            item.className =
-                "room-item" +
-                (room.room_id === currentRoomId ? " active" : "") +
-                (room.is_joined === false ? " not-joined" : "");
-
-            const lockMark = room.has_password === true
-                ? `<span class="room-lock-mark" title="Группа защищена паролем">🔒</span>`
-                : "";
-
-            const joinMark = room.is_joined === false
-                ? `<span class="join-mark">Вступить</span>`
-                : "";
-
-            item.innerHTML = `
-                <div class="room-name">${lockMark}${escapeHtml(room.name)}</div>
-
-                <div class="room-actions">
-                    ${joinMark}
-                </div>
-            `;
-
-            item.onclick = () => selectRoom(room);
-
-            roomsList.appendChild(item);
+            roomsList.appendChild(renderRoomItem(room, {
+                searchResult: isGroupSearchActive(),
+            }));
         }
     }
 
@@ -526,6 +667,105 @@ function renderRooms() {
     if (typeof applySmileys === "function") {
         applySmileys(roomsList);
     }
+}
+
+
+function clearGroupSearch() {
+    groupSearchQuery = "";
+    groupSearchResults = [];
+    groupSearchLoading = false;
+    groupSearchRequestId += 1;
+
+    if (groupSearchTimer) {
+        clearTimeout(groupSearchTimer);
+        groupSearchTimer = null;
+    }
+
+    if (groupSearchInput) {
+        groupSearchInput.value = "";
+    }
+
+    renderRooms();
+}
+
+
+async function performGroupSearch(query, requestId) {
+    const trimmed = (query || "").trim();
+
+    if (!trimmed) {
+        if (requestId === groupSearchRequestId) {
+            clearGroupSearch();
+        }
+
+        return;
+    }
+
+    groupSearchLoading = true;
+    updateGroupSearchPanel();
+
+    try {
+        const res = await fetch(`/api/groups/search?q=${encodeURIComponent(trimmed)}&limit=30`);
+        const list = await res.json();
+
+        if (requestId !== groupSearchRequestId) {
+            return;
+        }
+
+        groupSearchResults = Array.isArray(list) ? list : [];
+
+        groupSearchResults.forEach((room) => {
+            if (!room || !room.room_id) {
+                return;
+            }
+
+            const existing = rooms.get(room.room_id);
+
+            if (existing && existing.is_joined === true && room.is_joined === false) {
+                room.is_joined = true;
+                room.is_password_unlocked = existing.is_password_unlocked;
+            }
+
+            addRoom(room, false, {
+                allowJoinedDowngrade: true,
+            });
+        });
+    } catch {
+        if (requestId === groupSearchRequestId) {
+            groupSearchResults = [];
+        }
+    } finally {
+        if (requestId === groupSearchRequestId) {
+            groupSearchLoading = false;
+            renderRooms();
+        }
+    }
+}
+
+
+function scheduleGroupSearch() {
+    const query = groupSearchInput ? groupSearchInput.value.trim() : "";
+
+    groupSearchQuery = query;
+    groupSearchRequestId += 1;
+    const requestId = groupSearchRequestId;
+
+    if (groupSearchTimer) {
+        clearTimeout(groupSearchTimer);
+        groupSearchTimer = null;
+    }
+
+    if (!query) {
+        clearGroupSearch();
+        return;
+    }
+
+    groupSearchLoading = true;
+    groupSearchResults = [];
+    renderRooms();
+
+    groupSearchTimer = setTimeout(() => {
+        performGroupSearch(query, requestId);
+    }, 180);
 }
 
 
@@ -732,6 +972,7 @@ async function joinGroup(group, passwordOverride = null, options = {}) {
 
         if (data.room) {
             addRoom(data.room);
+            clearGroupSearch();
             closeJoinGroupPasswordModal();
             await selectRoom(data.room);
             return;
@@ -744,6 +985,7 @@ async function joinGroup(group, passwordOverride = null, options = {}) {
         };
 
         addRoom(fallbackRoom);
+        clearGroupSearch();
         closeJoinGroupPasswordModal();
         await selectRoom(fallbackRoom);
     } catch {
@@ -830,6 +1072,7 @@ function openGroupSettingsModal() {
     updateGroupLeaveButton(room);
     updateOwnerActions(room);
     hideGroupRenameForm();
+    hideGroupDescriptionForm();
     hideGroupPasswordForm();
 
     if (groupMembersList) {
@@ -846,6 +1089,7 @@ function closeGroupSettingsModal() {
     }
 
     hideGroupRenameForm();
+    hideGroupDescriptionForm();
     hideGroupPasswordForm();
 }
 
@@ -881,6 +1125,10 @@ function updateOwnerActions(room) {
         groupRenameBtn.style.display = canEdit ? "inline-flex" : "none";
     }
 
+    if (groupDescriptionBtn) {
+        groupDescriptionBtn.style.display = canEdit ? "inline-flex" : "none";
+    }
+
     if (groupPasswordBtn) {
         groupPasswordBtn.style.display = canEdit ? "inline-flex" : "none";
         groupPasswordBtn.textContent = room && room.has_password
@@ -890,6 +1138,10 @@ function updateOwnerActions(room) {
 
     if (groupRenameForm) {
         groupRenameForm.classList.remove("show");
+    }
+
+    if (groupDescriptionForm) {
+        groupDescriptionForm.classList.remove("show");
     }
 
     if (groupPasswordForm) {
@@ -958,6 +1210,7 @@ function showGroupRenameForm() {
         return;
     }
 
+    hideGroupDescriptionForm();
     hideGroupPasswordForm();
 
     if (groupRenameInput) {
@@ -1045,6 +1298,7 @@ async function saveGroupRename() {
 
         currentRoomId = data.room.room_id;
         roomTitle.textContent = data.room.name;
+        updateRoomDescription(data.room);
 
         if (groupSettingsTitle) {
             groupSettingsTitle.textContent = data.room.name;
@@ -1058,6 +1312,98 @@ async function saveGroupRename() {
 }
 
 
+
+function showGroupDescriptionForm() {
+    const room = getCurrentGroupRoom();
+
+    if (!canEditRoom(room)) {
+        return;
+    }
+
+    hideGroupRenameForm();
+    hideGroupPasswordForm();
+
+    if (groupDescriptionInput) {
+        groupDescriptionInput.value = getRoomDescriptionText(room);
+    }
+
+    if (groupDescriptionForm) {
+        groupDescriptionForm.classList.add("show");
+    }
+
+    setTimeout(() => {
+        if (groupDescriptionInput) {
+            groupDescriptionInput.focus();
+            groupDescriptionInput.select();
+        }
+    }, 50);
+}
+
+
+function hideGroupDescriptionForm() {
+    if (groupDescriptionForm) {
+        groupDescriptionForm.classList.remove("show");
+    }
+
+    if (groupDescriptionInput) {
+        groupDescriptionInput.value = "";
+    }
+}
+
+
+async function saveGroupDescription() {
+    const room = getCurrentGroupRoom();
+
+    if (!canEditRoom(room)) {
+        return;
+    }
+
+    const description = groupDescriptionInput
+        ? groupDescriptionInput.value.trim()
+        : "";
+
+    try {
+        const res = await fetch("/api/groups/description", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                room_id: room.room_id,
+                description,
+            }),
+        });
+
+        const data = await res.json();
+
+        if (!data.ok) {
+            if (data.error === "not_creator") {
+                alert("Менять описание может только создатель группы.");
+                return;
+            }
+
+            if (data.error === "cannot_change_general_description") {
+                alert("Описание общего чата менять нельзя.");
+                return;
+            }
+
+            alert("Не удалось изменить описание группы");
+            return;
+        }
+
+        if (data.room) {
+            addRoom(data.room);
+            updateRoomDescription(data.room);
+        }
+
+        hideGroupDescriptionForm();
+        renderRooms();
+    } catch {
+        alert("Ошибка изменения описания группы");
+    }
+}
+
+
 function showGroupPasswordForm() {
     const room = getCurrentGroupRoom();
 
@@ -1066,6 +1412,7 @@ function showGroupPasswordForm() {
     }
 
     hideGroupRenameForm();
+    hideGroupDescriptionForm();
 
     if (groupPasswordInput) {
         groupPasswordInput.value = "";
@@ -1225,6 +1572,13 @@ if (groupRenameBtn) {
 }
 
 
+if (groupDescriptionBtn) {
+    groupDescriptionBtn.onclick = () => {
+        showGroupDescriptionForm();
+    };
+}
+
+
 if (groupPasswordBtn) {
     groupPasswordBtn.onclick = () => {
         showGroupPasswordForm();
@@ -1240,6 +1594,18 @@ if (saveGroupRenameBtn) {
 if (cancelGroupRenameBtn) {
     cancelGroupRenameBtn.onclick = () => {
         hideGroupRenameForm();
+    };
+}
+
+
+if (saveGroupDescriptionBtn) {
+    saveGroupDescriptionBtn.onclick = saveGroupDescription;
+}
+
+
+if (cancelGroupDescriptionBtn) {
+    cancelGroupDescriptionBtn.onclick = () => {
+        hideGroupDescriptionForm();
     };
 }
 
@@ -1266,6 +1632,21 @@ if (groupRenameInput) {
         if (e.key === "Escape") {
             e.preventDefault();
             hideGroupRenameForm();
+        }
+    });
+}
+
+
+if (groupDescriptionInput) {
+    groupDescriptionInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            saveGroupDescription();
+        }
+
+        if (e.key === "Escape") {
+            e.preventDefault();
+            hideGroupDescriptionForm();
         }
     });
 }
@@ -1303,6 +1684,33 @@ if (groupSettingsModal) {
     groupSettingsModal.onclick = (e) => {
         if (e.target === groupSettingsModal) {
             closeGroupSettingsModal();
+        }
+    };
+}
+
+
+
+
+if (groupSearchInput) {
+    groupSearchInput.addEventListener("input", () => {
+        scheduleGroupSearch();
+    });
+
+    groupSearchInput.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+            e.preventDefault();
+            clearGroupSearch();
+        }
+    });
+}
+
+
+if (groupSearchClearBtn) {
+    groupSearchClearBtn.onclick = () => {
+        clearGroupSearch();
+
+        if (groupSearchInput) {
+            groupSearchInput.focus();
         }
     };
 }

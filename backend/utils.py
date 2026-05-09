@@ -266,6 +266,7 @@ def validate_room(data):
 
     # Нормализуем старые/неполные P2P-пакеты
     data.setdefault("unique_name", "")
+    data.setdefault("description", "")
     data.setdefault("password_hash", "")
     data.setdefault("room_type", "group")
     data.setdefault("is_creator", False)

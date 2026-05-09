@@ -154,3 +154,23 @@ if (nameInput) {
         }
     });
 }
+async function loadAppVersion() {
+    if (!appVersionLabel) {
+        return;
+    }
+
+    try {
+        const res = await fetch("/api/version");
+        const data = await res.json();
+
+        const appName = data.app_name || "LAN P2P Chat";
+        const version = data.version || "0.0.0";
+
+        appVersionLabel.textContent = `${appName} v${version}`;
+        appVersionLabel.title = `${appName} v${version}`;
+    } catch {
+        appVersionLabel.textContent = "LAN P2P Chat";
+        appVersionLabel.title = "LAN P2P Chat";
+    }
+}
+

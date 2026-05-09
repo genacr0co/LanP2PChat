@@ -229,7 +229,7 @@ async def ui_ws(websocket: WebSocket):
         state.local_web_clients.add(websocket)
 
     try:
-        rooms = await get_all_groups(include_not_joined=True, include_password_hash=False)
+        rooms = await get_all_groups(include_not_joined=False, include_password_hash=False)
         direct_chats = await get_direct_chats()
 
         for room in rooms:

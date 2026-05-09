@@ -26,6 +26,7 @@ def group_row_to_dict(row, include_password_hash=True):
         "room_id": row["room_id"],
         "name": row["name"],
         "unique_name": row["unique_name"],
+        "description": row["description"] or "",
         "created_by": row["created_by"],
         "created_at": row["created_at"],
         "is_creator": bool(row["is_creator"]),

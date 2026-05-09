@@ -12,6 +12,7 @@ async def init_groups_db():
                 room_id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 unique_name TEXT NOT NULL DEFAULT '',
+                description TEXT NOT NULL DEFAULT '',
                 password_hash TEXT NOT NULL DEFAULT '',
                 password_version INTEGER NOT NULL DEFAULT 0,
                 unlocked_password_version INTEGER NOT NULL DEFAULT 0,
@@ -25,6 +26,13 @@ async def init_groups_db():
                 deleted_by TEXT NOT NULL DEFAULT ''
             )
         """)
+
+        await ensure_column(
+            db,
+            "groups",
+            "description",
+            "description TEXT NOT NULL DEFAULT ''",
+        )
 
         await ensure_column(
             db,
@@ -134,6 +142,7 @@ async def init_groups_db():
                 room_id,
                 name,
                 unique_name,
+                description,
                 password_hash,
                 password_version,
                 unlocked_password_version,
@@ -146,11 +155,12 @@ async def init_groups_db():
                 deleted_at,
                 deleted_by
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             "general",
             "Общий чат",
             "general",
+            "Общий чат для всех участников локальной сети.",
             "",
             0,
             0,
@@ -171,6 +181,7 @@ async def init_groups_db():
                 deleted_by = '',
                 is_joined = 1,
                 is_creator = 1,
+                description = 'Общий чат для всех участников локальной сети.',
                 password_hash = '',
                 password_version = 0,
                 unlocked_password_version = 0,

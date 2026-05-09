@@ -317,3 +317,34 @@
     font-size: 13px;
     line-height: 1.35;
 }
+
+/* Text fields in modals */
+
+.modal-card textarea,
+.modal-textarea,
+.settings-textarea {
+    width: 100%;
+    min-height: 86px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    outline: none;
+    padding: 10px 12px;
+    background: #1f2937;
+    color: #e5e7eb;
+    font-size: 15px;
+    line-height: 1.35;
+    font-family: inherit;
+    resize: vertical;
+}
+
+.modal-card textarea:focus,
+.modal-textarea:focus,
+.settings-textarea:focus {
+    border-color: #2563eb;
+}
+
+.settings-textarea {
+    min-height: 108px;
+    background: #111827;
+    border-color: #374151;
+}

@@ -1,5 +1,5 @@
 #define MyAppName "LAN P2P Chat"
-#define MyAppVersion "1.0.3"
+#define MyAppVersion "1.0.9"
 #define MyAppExeName "LANP2PChat.exe"
 #define MyAppIcon "static\src\assets\logo_gers_new.ico"
 

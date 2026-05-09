@@ -15,9 +15,25 @@
     <link rel="stylesheet" href="/static/css/modal.css">
     <link rel="stylesheet" href="/static/css/emoji.css">
     <link rel="stylesheet" href="/static/css/join.css">
+    <link rel="stylesheet" href="/static/css/update.css">
     <link rel="stylesheet" href="/static/css/responsive.css">
 </head>
 <body class="loading">
+
+
+<div id="updateBanner" class="update-banner" role="status" aria-live="polite">
+    <div class="update-banner-inner">
+        <div class="update-banner-icon">⬆</div>
+
+        <div class="update-banner-text">
+            <strong id="updateBannerTitle" class="update-banner-title">Доступна новая версия</strong>
+            <div id="updateBannerMessage" class="update-banner-message">Можно обновить приложение до новой версии.</div>
+        </div>
+
+        <button id="updateInstallBtn" class="update-install-btn" type="button">Обновить</button>
+        <button id="updateCloseBtn" class="update-close-btn" type="button" title="Закрыть">×</button>
+    </div>
+</div>
 
 <div class="layout">
 
@@ -58,7 +74,30 @@
             <button id="dmTab">Личные</button>
         </div>
 
+        <div id="groupSearchPanel" class="group-search-panel">
+            <div class="group-search-box">
+                <input
+                    id="groupSearchInput"
+                    type="text"
+                    placeholder="Поиск групп"
+                    autocomplete="off"
+                >
+                <button
+                    id="groupSearchClearBtn"
+                    class="group-search-clear"
+                    type="button"
+                    title="Очистить поиск"
+                >
+                    ×
+                </button>
+                <span id="groupSearchIcon" class="group-search-icon">⌕</span>
+            </div>
+            <div id="groupSearchStatus" class="group-search-status"></div>
+        </div>
+
         <div id="roomsList" class="rooms-list"></div>
+
+        <div id="appVersionLabel" class="app-version">LAN P2P Chat</div>
 
         <div class="online-panel">
             <h3>Онлайн — нажми, чтобы написать</h3>
@@ -73,18 +112,30 @@
             <div class="header-brand">
                 <div>
                     <h1 id="roomTitle">LAN Chat</h1>
+                    <p id="roomDescription" class="room-description"></p>
                     <p id="status">Запуск...</p>
                 </div>
             </div>
 
-            <button
-                id="groupSettingsBtn"
-                class="group-settings-btn"
-                type="button"
-                title="Настройки чата"
-            >
-                ⚙
-            </button>
+            <div class="header-actions">
+                <label
+                    id="hideDeletedMessagesControl"
+                    class="chat-toggle"
+                    title="Скрыть удалённые сообщения из текущего чата"
+                >
+                    <input id="hideDeletedMessagesToggle" type="checkbox">
+                    <span>Скрыть удалённые</span>
+                </label>
+
+                <button
+                    id="groupSettingsBtn"
+                    class="group-settings-btn"
+                    type="button"
+                    title="Настройки чата"
+                >
+                    ⚙
+                </button>
+            </div>
         </header>
 
         <div id="chat" class="chat"></div>
@@ -125,6 +176,12 @@
     <div class="modal-card">
         <h2>Создать группу</h2>
         <input id="roomNameInput" type="text" placeholder="Название группы">
+        <textarea
+            id="roomDescriptionInput"
+            class="modal-textarea"
+            placeholder="Описание группы (необязательно)"
+            rows="3"
+        ></textarea>
         <input id="roomPasswordInput" type="password" placeholder="Пароль (необязательно)">
 
         <div class="modal-actions">
@@ -190,9 +247,31 @@
                 ✎ Переименовать группу
             </button>
 
+            <button id="groupDescriptionBtn" class="settings-action-btn owner-only-action" type="button">
+                📝 Изменить описание группы
+            </button>
+
             <button id="groupPasswordBtn" class="settings-action-btn owner-only-action" type="button">
                 🔑 Поставить пароль группы
             </button>
+
+            <div id="groupDescriptionForm" class="group-rename-form">
+                <textarea
+                    id="groupDescriptionInput"
+                    class="settings-textarea"
+                    placeholder="Описание группы"
+                    rows="4"
+                ></textarea>
+
+                <p class="settings-form-hint">
+                    Описание видно в шапке чата и синхронизируется между участниками.
+                </p>
+
+                <div class="group-rename-actions">
+                    <button id="saveGroupDescriptionBtn" type="button">Сохранить</button>
+                    <button id="cancelGroupDescriptionBtn" type="button">Отмена</button>
+                </div>
+            </div>
 
             <div id="groupRenameForm" class="group-rename-form">
                 <input
@@ -292,6 +371,7 @@
 <script src="/static/src/socket.js"></script>
 <script src="/static/src/dw_smiley.js"></script>
 <script src="/static/src/app.js"></script>
+<script src="/static/src/update.js"></script>
 
 </body>
 </html>

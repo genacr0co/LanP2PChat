@@ -189,6 +189,63 @@ function isDeletedMessage(msg) {
 }
 
 
+function shouldHideDeletedMessages() {
+    return hideDeletedMessages === true;
+}
+
+
+function loadHideDeletedMessagesSetting() {
+    try {
+        hideDeletedMessages = localStorage.getItem("hideDeletedMessages") === "true";
+    } catch {
+        hideDeletedMessages = false;
+    }
+
+    if (hideDeletedMessagesToggle) {
+        hideDeletedMessagesToggle.checked = hideDeletedMessages;
+    }
+}
+
+
+function saveHideDeletedMessagesSetting() {
+    try {
+        localStorage.setItem(
+            "hideDeletedMessages",
+            hideDeletedMessages ? "true" : "false"
+        );
+    } catch {}
+}
+
+
+async function reloadCurrentChatMessagesAfterFilterChange() {
+    hideMessageContextMenu();
+
+    if (activeTab === "group" && currentRoomId) {
+        await loadHistory();
+        return;
+    }
+
+    if (activeTab === "dm" && currentDirectChatId) {
+        await loadDirectHistory(currentDirectChatId);
+    }
+}
+
+
+function setupHideDeletedMessagesToggle() {
+    if (!hideDeletedMessagesToggle) {
+        return;
+    }
+
+    hideDeletedMessagesToggle.checked = hideDeletedMessages;
+
+    hideDeletedMessagesToggle.onchange = async () => {
+        hideDeletedMessages = hideDeletedMessagesToggle.checked === true;
+        saveHideDeletedMessagesSetting();
+        await reloadCurrentChatMessagesAfterFilterChange();
+    };
+}
+
+
 function getDeletedMessageText() {
     return "▒▒▒▒▒▒▒▒▒▒▒▒";
 }
@@ -461,6 +518,12 @@ function applyDeletedMessageState(row, msg) {
     const bubble = row.querySelector(".bubble");
     const textEl = row.querySelector(".text");
 
+    if (shouldHideDeletedMessages()) {
+        rendered.delete(msg.message_id);
+        row.remove();
+        return;
+    }
+
     row.classList.add("deleted-message-row");
     row.dataset.isDeleted = "true";
 
@@ -559,6 +622,10 @@ function createGroupMessageRow(msg) {
     const isMe = isOwnMessage(msg);
     const deleted = isDeletedMessage(msg);
 
+    if (deleted && shouldHideDeletedMessages()) {
+        return null;
+    }
+
     const row = document.createElement("div");
     row.className =
         "message-row" +
@@ -634,6 +701,10 @@ function createDirectMessageRow(msg) {
 
     const isMe = isOwnMessage(msg);
     const deleted = isDeletedMessage(msg);
+
+    if (deleted && shouldHideDeletedMessages()) {
+        return null;
+    }
 
     const row = document.createElement("div");
     row.className =

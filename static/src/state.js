@@ -23,9 +23,22 @@ const input = document.getElementById("messageInput");
 
 const statusEl = document.getElementById("status");
 const roomTitle = document.getElementById("roomTitle");
+const roomDescription = document.getElementById("roomDescription");
+const appVersionLabel = document.getElementById("appVersionLabel");
 
 const roomsList = document.getElementById("roomsList");
 const createRoomBtn = document.getElementById("createRoomBtn");
+const groupSearchPanel = document.getElementById("groupSearchPanel");
+const groupSearchInput = document.getElementById("groupSearchInput");
+const groupSearchClearBtn = document.getElementById("groupSearchClearBtn");
+const groupSearchIcon = document.getElementById("groupSearchIcon");
+const groupSearchStatus = document.getElementById("groupSearchStatus");
+
+let groupSearchQuery = "";
+let groupSearchResults = [];
+let groupSearchLoading = false;
+let groupSearchTimer = null;
+let groupSearchRequestId = 0;
 
 const groupsTab = document.getElementById("groupsTab");
 const dmTab = document.getElementById("dmTab");
@@ -42,6 +55,7 @@ const cancelNameBtn = document.getElementById("cancelNameBtn");
 
 const roomModal = document.getElementById("roomModal");
 const roomNameInput = document.getElementById("roomNameInput");
+const roomDescriptionInput = document.getElementById("roomDescriptionInput");
 const roomPasswordInput = document.getElementById("roomPasswordInput");
 const saveRoomBtn = document.getElementById("saveRoomBtn");
 const cancelRoomBtn = document.getElementById("cancelRoomBtn");
@@ -55,6 +69,9 @@ const joinGroupModalSaveBtn = document.getElementById("joinGroupModalSaveBtn");
 const joinGroupModalCancelBtn = document.getElementById("joinGroupModalCancelBtn");
 let pendingJoinRoomId = null;
 
+const hideDeletedMessagesControl = document.getElementById("hideDeletedMessagesControl");
+const hideDeletedMessagesToggle = document.getElementById("hideDeletedMessagesToggle");
+
 const groupSettingsBtn = document.getElementById("groupSettingsBtn");
 const groupSettingsModal = document.getElementById("groupSettingsModal");
 const closeGroupSettingsBtn = document.getElementById("closeGroupSettingsBtn");
@@ -64,6 +81,12 @@ const groupMuteBtn = document.getElementById("groupMuteBtn");
 const groupLeaveBtn = document.getElementById("groupLeaveBtn");
 
 const groupRenameBtn = document.getElementById("groupRenameBtn");
+
+const groupDescriptionBtn = document.getElementById("groupDescriptionBtn");
+const groupDescriptionForm = document.getElementById("groupDescriptionForm");
+const groupDescriptionInput = document.getElementById("groupDescriptionInput");
+const saveGroupDescriptionBtn = document.getElementById("saveGroupDescriptionBtn");
+const cancelGroupDescriptionBtn = document.getElementById("cancelGroupDescriptionBtn");
 
 const groupPasswordBtn = document.getElementById("groupPasswordBtn");
 const groupPasswordForm = document.getElementById("groupPasswordForm");

@@ -286,8 +286,23 @@
     color: #fee2e2;
 }
 
+.app-version {
+    margin: 0 12px 10px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(17, 24, 39, 0.58);
+    border: 1px solid rgba(55, 65, 81, 0.75);
+    color: #9ca3af;
+    font-size: 12px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+}
+
 .online-panel {
-    margin-top: auto;
+    margin-top: 0;
     padding: 12px;
     border-top: 1px solid #1f2937;
 }
@@ -358,4 +373,108 @@
     line-height: 1;
     opacity: 0.82;
     vertical-align: middle;
+}
+
+/* Group search */
+
+.group-search-panel {
+    padding: 10px 10px 0;
+    border-bottom: 1px solid rgba(31, 41, 55, 0.75);
+}
+
+.group-search-box {
+    position: relative;
+    height: 40px;
+    display: flex;
+    align-items: center;
+}
+
+.group-search-box input {
+    width: 100%;
+    height: 40px;
+    border: 1px solid rgba(55, 65, 81, 0.9);
+    border-radius: 999px;
+    outline: none;
+    padding: 0 42px 0 14px;
+    background: rgba(31, 41, 55, 0.78);
+    color: #e5e7eb;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.group-search-box input::placeholder {
+    color: #6b7280;
+}
+
+.group-search-box input:focus {
+    border-color: #2563eb;
+    background: #1f2937;
+}
+
+.group-search-icon,
+.group-search-clear {
+    position: absolute;
+    right: 10px;
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    align-items: center;
+    justify-content: center;
+    color: #9ca3af;
+    line-height: 1;
+}
+
+.group-search-icon {
+    display: inline-flex;
+    pointer-events: none;
+    font-size: 20px;
+    transform: rotate(-15deg);
+}
+
+.group-search-clear {
+    display: none;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 22px;
+    padding: 0;
+}
+
+.group-search-clear:hover {
+    background: rgba(75, 85, 99, 0.75);
+    color: #f9fafb;
+}
+
+.group-search-status {
+    display: none;
+    padding: 8px 4px 0;
+    color: #9ca3af;
+    font-size: 12px;
+    line-height: 1.25;
+}
+
+.room-info {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.room-subtitle {
+    max-width: 100%;
+    color: #9ca3af;
+    font-size: 12px;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.room-item.active .room-subtitle {
+    color: rgba(219, 234, 254, 0.85);
+}
+
+.room-item.search-result.not-joined {
+    opacity: 1;
 }

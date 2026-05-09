@@ -13,7 +13,9 @@ from groups_db.groups import (
     leave_group,
     delete_group,
     rename_group,
+    update_group_description,
     update_group_password,
+    search_groups,
     check_group_password,
 )
 
@@ -43,10 +45,21 @@ def make_ui_rooms(rooms):
 @app.get("/api/rooms")
 async def api_rooms():
     rooms = await get_all_groups(
-        include_not_joined=True,
+        include_not_joined=False,
         include_password_hash=False,
     )
     return JSONResponse(rooms)
+
+
+@app.get("/api/groups/search")
+async def api_groups_search(q: str = "", limit: int = 30):
+    groups = await search_groups(
+        query=q,
+        limit=limit,
+        include_password_hash=False,
+    )
+
+    return JSONResponse(make_ui_rooms(groups))
 
 
 @app.post("/api/rooms")
@@ -54,6 +67,7 @@ async def api_create_room(data: dict):
     name = data.get("name", "").strip()
     unique_name = data.get("unique_name", "").strip().lower()
     password = data.get("password", "")
+    description = data.get("description", "")
 
     if not name:
         return {
@@ -65,6 +79,7 @@ async def api_create_room(data: dict):
         name=name,
         password=password,
         created_by=state.NODE_ID,
+        description=description,
         unique_name=unique_name,
     )
 
@@ -233,6 +248,35 @@ async def api_group_rename(data: dict):
     if renamed_room:
         await receive_room(renamed_room, forward=True)
         result["room"] = make_ui_group_copy(renamed_room)
+
+    return result
+
+
+@app.post("/api/groups/description")
+async def api_group_description(data: dict):
+    room_id = data.get("room_id", "")
+    description = data.get("description", "")
+
+    if not room_id:
+        return {
+            "ok": False,
+            "error": "empty_room_id",
+        }
+
+    result = await update_group_description(
+        room_id=room_id,
+        description=description,
+        updated_by=state.NODE_ID,
+    )
+
+    if not result.get("ok"):
+        return result
+
+    room = result.get("room")
+
+    if room:
+        await receive_room(room, forward=True)
+        result["room"] = make_ui_group_copy(room)
 
     return result
 

@@ -1,3 +1,42 @@
+.header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.chat-toggle {
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: rgba(31, 41, 55, 0.82);
+    border: 1px solid rgba(55, 65, 81, 0.9);
+    color: #cbd5e1;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.chat-toggle:hover {
+    background: #1f2937;
+    color: #f9fafb;
+}
+
+.chat-toggle input {
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    accent-color: #2563eb;
+    cursor: pointer;
+}
+
 .chat {
     flex: 1;
     min-height: 0;
@@ -223,7 +262,46 @@
 }
 
 @media (max-width: 700px) {
-    .chat {
+    .header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.chat-toggle {
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: rgba(31, 41, 55, 0.82);
+    border: 1px solid rgba(55, 65, 81, 0.9);
+    color: #cbd5e1;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.chat-toggle:hover {
+    background: #1f2937;
+    color: #f9fafb;
+}
+
+.chat-toggle input {
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    accent-color: #2563eb;
+    cursor: pointer;
+}
+
+.chat {
         padding: 12px;
     }
 
@@ -244,6 +322,20 @@
         width: 54%;
     }
 
+    .header-actions {
+        gap: 8px;
+    }
+
+    .chat-toggle {
+        height: 34px;
+        padding: 0 10px;
+        font-size: 12px;
+    }
+
+    .chat-toggle span {
+        display: none;
+    }
+
     .message-context-menu {
         min-width: 210px;
     }
@@ -252,4 +344,24 @@
         height: 42px;
         font-size: 15px;
     }
+}
+/* Current room description */
+
+.room-description {
+    display: none;
+    margin: 3px 0 0;
+    max-width: min(70vw, 720px);
+    color: #9ca3af;
+    font-size: 13px;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.join-group-description {
+    color: #cbd5e1;
+    font-size: 14px;
+    line-height: 1.4;
+    margin: 8px 0 12px;
 }

@@ -1,6 +1,12 @@
 from fastapi.responses import FileResponse
 
 from settings import STATIC_DIR, HTTP_PORT
+
+try:
+    from version import APP_NAME, APP_VERSION
+except Exception:
+    APP_NAME = "LAN P2P Chat"
+    APP_VERSION = "0.0.0"
 from user_db.profile import get_user_settings, save_user_settings
 
 from .app import app
@@ -92,6 +98,14 @@ async def api_peers():
         "port": HTTP_PORT,
         "peers_count": len(peers),
         "peers": peers,
+    }
+
+
+@app.get("/api/version")
+async def api_version():
+    return {
+        "app_name": APP_NAME,
+        "version": APP_VERSION,
     }
 
 

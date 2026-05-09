@@ -268,7 +268,10 @@ input.addEventListener("keydown", (e) => {
 
 async function startApp() {
     loadMutedChats();
+    loadHideDeletedMessagesSetting();
+    setupHideDeletedMessagesToggle();
 
+    await loadAppVersion();
     await loadConfig();
     await loadRooms();
     await loadDirectChats();

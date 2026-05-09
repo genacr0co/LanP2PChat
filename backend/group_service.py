@@ -38,6 +38,8 @@ def make_public_group_copy(group):
         public_group["password_hash"] = ""
         public_group["password_version"] = 0
 
+    public_group["description"] = str(group.get("description") or "").strip()
+
     public_group["is_deleted"] = bool(group.get("is_deleted"))
     public_group["deleted_at"] = group.get("deleted_at") or ""
     public_group["deleted_by"] = group.get("deleted_by") or ""
@@ -74,6 +76,8 @@ def normalize_received_group(group):
         normalized["is_creator"] = False
         normalized["is_joined"] = False
         normalized["unlocked_password_version"] = 0
+
+    normalized["description"] = str(normalized.get("description") or "").strip()
 
     normalized["has_password"] = bool(normalized.get("has_password"))
     normalized["password_hash"] = normalized.get("password_hash") or ""
