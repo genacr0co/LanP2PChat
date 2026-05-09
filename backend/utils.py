@@ -2,6 +2,11 @@ import socket
 import ipaddress
 
 try:
+    from settings import EXTRA_SUBNETS
+except Exception:
+    EXTRA_SUBNETS = []
+
+try:
     import psutil
 except Exception:
     psutil = None
@@ -199,6 +204,14 @@ def get_broadcast_addresses():
                 broadcasts.add(str(network.broadcast_address))
             except Exception:
                 pass
+
+    for item in EXTRA_SUBNETS:
+        try:
+            network = ipaddress.IPv4Network(str(item).strip(), strict=False)
+            if network.version == 4:
+                broadcasts.add(str(network.broadcast_address))
+        except Exception:
+            pass
 
     return sorted(broadcasts)
 

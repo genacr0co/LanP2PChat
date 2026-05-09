@@ -1,6 +1,13 @@
 from fastapi.responses import FileResponse
 
-from settings import STATIC_DIR, HTTP_PORT
+from settings import (
+    STATIC_DIR,
+    HTTP_PORT,
+    BOOTSTRAP_NODES,
+    EXTRA_SUBNETS,
+    PEX_INTERVAL,
+    ENABLE_PORT_HOPPING,
+)
 
 try:
     from version import APP_NAME, APP_VERSION
@@ -79,6 +86,12 @@ async def api_me():
         "sockets": sockets_count,
         "broadcasts": get_broadcast_addresses(),
         "users": online_users,
+        "p2p": {
+            "bootstrap_nodes": BOOTSTRAP_NODES,
+            "extra_subnets": EXTRA_SUBNETS,
+            "pex_interval": PEX_INTERVAL,
+            "port_hopping_enabled": ENABLE_PORT_HOPPING,
+        },
     }
 
 
@@ -118,3 +131,35 @@ async def api_config():
 async def api_save_config(data: dict):
     await save_user_settings(data)
     return {"ok": True}
+
+@app.get("/api/p2p/debug")
+async def api_p2p_debug():
+    with state.peer_lock:
+        peers = []
+        for peer in state.peers.values():
+            node_id = peer.get("node_id")
+            peers.append(_build_peer_info(
+                peer,
+                connected=node_id in state.peer_connections,
+            ))
+
+        peer_tasks = list(state.peer_tasks.keys())
+        peer_queues = list(state.peer_queues.keys())
+        peer_connections = list(state.peer_connections.keys())
+
+    return {
+        "node_id": state.NODE_ID,
+        "ip": get_local_ip(),
+        "port": HTTP_PORT,
+        "bootstrap_nodes": BOOTSTRAP_NODES,
+        "extra_subnets": EXTRA_SUBNETS,
+        "pex_interval": PEX_INTERVAL,
+        "port_hopping_enabled": ENABLE_PORT_HOPPING,
+        "broadcasts": get_broadcast_addresses(),
+        "peers_count": len(peers),
+        "sockets_count": len(peer_connections),
+        "peer_tasks": peer_tasks,
+        "peer_queues": peer_queues,
+        "peer_connections": peer_connections,
+        "peers": peers,
+    }

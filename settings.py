@@ -63,3 +63,36 @@ os.makedirs(LOCAL_DATA_DIR, exist_ok=True)
 USER_DB_PATH = os.path.join(LOCAL_DATA_DIR, "user.db")
 GROUPS_DB_PATH = os.path.join(LOCAL_DATA_DIR, "groups.db")
 DIRECT_DB_PATH = os.path.join(LOCAL_DATA_DIR, "direct.db")
+# ====== P2P / GLOBAL DISCOVERY ======
+
+# Начальные ноды для входа в распределённую сеть.
+# Форматы:
+#   "192.168.1.100:8765"
+#   "node.example.com:8765"
+#   {"host": "node.example.com", "port": 8765}
+BOOTSTRAP_NODES = [
+        "10.86.1.75:8765",
+    "10.86.90.65:8765",
+]
+
+# Дополнительные подсети для будущих явных LAN-сценариев.
+# Auto-scan уже умеет строить диапазоны от интерфейсов сам, поэтому обычно
+# это поле можно оставить пустым.
+EXTRA_SUBNETS = [
+        "10.86.0.0/23",
+    "10.86.90.0/24",
+]
+
+# Peer Exchange: обмен списком известных peer-ов через уже установленные
+# WebSocket-соединения.
+PEX_INTERVAL = 30
+PEX_MAX_PEERS = 100
+PEX_CONNECT_LIMIT = 60
+
+# Основа под будущую ручную/управляемую смену порта.
+# Полная автоматическая смена порта требует отдельного механизма перезапуска
+# backend-сервера, поэтому сейчас по умолчанию выключено.
+ENABLE_PORT_HOPPING = False
+PORT_HOPPING_INTERVAL = 300
+PORT_HOPPING_MIN_PORT = 8000
+PORT_HOPPING_MAX_PORT = 9000

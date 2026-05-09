@@ -13,6 +13,9 @@ from .connection import (
     ensure_peer_task,
 )
 
+from .auto_scan import auto_scan_loop
+from .pex import bootstrap_loop, pex_refresh_loop
+
 
 # =========================
 # INTERNAL NETWORK LOOP SENDERS
@@ -176,4 +179,7 @@ async def start_network_layer():
         discovery_announce_loop(),
         discovery_listen_loop(),
         peer_manager_loop(),
+        auto_scan_loop(),
+        bootstrap_loop(),
+        pex_refresh_loop(),
     )

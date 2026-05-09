@@ -15,6 +15,12 @@ from .p2p.peers import (
     add_or_update_peer as _add_or_update_peer,
     touch_peer as _touch_peer,
 )
+from .p2p.pex import (
+    PEX_REQUEST_TYPE,
+    PEX_RESPONSE_TYPE,
+    send_pex_response,
+    process_pex_response,
+)
 
 
 def _safe_json(packet):
@@ -186,6 +192,16 @@ async def p2p_ws(websocket: WebSocket):
 
                 if learned and peer_node_id:
                     _touch_peer(peer_node_id)
+
+                packet_type = packet.get("type")
+
+                if packet_type == PEX_REQUEST_TYPE:
+                    await send_pex_response(websocket)
+                    continue
+
+                if packet_type == PEX_RESPONSE_TYPE:
+                    process_pex_response(packet, source="pex")
+                    continue
 
                 await handle_packet(packet)
 

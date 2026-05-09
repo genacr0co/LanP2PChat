@@ -2,6 +2,9 @@ const MESSAGE_PAGE_LIMIT = 40;
 const MESSAGE_LOAD_SCROLL_EDGE = 120;
 const MESSAGE_SCROLL_SUPPRESS_MS = 450;
 
+const HIDE_DELETED_MESSAGES_STORAGE_KEY = "lanp2pchat.hideDeletedMessages";
+const HIDE_DELETED_MESSAGES_LEGACY_KEY = "hideDeletedMessages";
+
 const messagePagination = new Map();
 
 
@@ -194,26 +197,88 @@ function shouldHideDeletedMessages() {
 }
 
 
-function loadHideDeletedMessagesSetting() {
+function normalizeBooleanSetting(value) {
+    return value === true || String(value).toLowerCase() === "true" || String(value) === "1";
+}
+
+
+function readHideDeletedMessagesFromStorage() {
     try {
-        hideDeletedMessages = localStorage.getItem("hideDeletedMessages") === "true";
-    } catch {
-        hideDeletedMessages = false;
+        const saved = localStorage.getItem(HIDE_DELETED_MESSAGES_STORAGE_KEY);
+
+        if (saved !== null) {
+            return normalizeBooleanSetting(saved);
+        }
+
+        const legacySaved = localStorage.getItem(HIDE_DELETED_MESSAGES_LEGACY_KEY);
+
+        if (legacySaved !== null) {
+            return normalizeBooleanSetting(legacySaved);
+        }
+    } catch {}
+
+    return false;
+}
+
+
+function updateHideDeletedMessagesToggleUi() {
+    if (hideDeletedMessagesToggle) {
+        hideDeletedMessagesToggle.checked = hideDeletedMessages === true;
     }
 
-    if (hideDeletedMessagesToggle) {
-        hideDeletedMessagesToggle.checked = hideDeletedMessages;
+    if (hideDeletedMessagesControl) {
+        hideDeletedMessagesControl.classList.toggle(
+            "active",
+            hideDeletedMessages === true
+        );
     }
 }
 
 
-function saveHideDeletedMessagesSetting() {
+function loadHideDeletedMessagesSetting() {
+    hideDeletedMessages = readHideDeletedMessagesFromStorage();
+    updateHideDeletedMessagesToggleUi();
+}
+
+
+function applyBackendHideDeletedMessagesSetting(value) {
+    let hasLocalValue = false;
+
     try {
-        localStorage.setItem(
-            "hideDeletedMessages",
-            hideDeletedMessages ? "true" : "false"
+        hasLocalValue = (
+            localStorage.getItem(HIDE_DELETED_MESSAGES_STORAGE_KEY) !== null ||
+            localStorage.getItem(HIDE_DELETED_MESSAGES_LEGACY_KEY) !== null
         );
     } catch {}
+
+    if (!hasLocalValue && value !== undefined && value !== null && value !== "") {
+        hideDeletedMessages = normalizeBooleanSetting(value);
+        saveHideDeletedMessagesSetting({ syncBackend: false });
+        updateHideDeletedMessagesToggleUi();
+    }
+}
+
+
+function saveHideDeletedMessagesSetting(options = {}) {
+    const syncBackend = options.syncBackend !== false;
+    const value = hideDeletedMessages ? "true" : "false";
+
+    try {
+        localStorage.setItem(HIDE_DELETED_MESSAGES_STORAGE_KEY, value);
+        localStorage.setItem(HIDE_DELETED_MESSAGES_LEGACY_KEY, value);
+    } catch {}
+
+    if (syncBackend) {
+        fetch("/api/config", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                hide_deleted_messages: hideDeletedMessages === true,
+            }),
+        }).catch(() => {});
+    }
 }
 
 
@@ -236,10 +301,11 @@ function setupHideDeletedMessagesToggle() {
         return;
     }
 
-    hideDeletedMessagesToggle.checked = hideDeletedMessages;
+    updateHideDeletedMessagesToggleUi();
 
     hideDeletedMessagesToggle.onchange = async () => {
         hideDeletedMessages = hideDeletedMessagesToggle.checked === true;
+        updateHideDeletedMessagesToggleUi();
         saveHideDeletedMessagesSetting();
         await reloadCurrentChatMessagesAfterFilterChange();
     };

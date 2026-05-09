@@ -11,6 +11,13 @@ from .peers import (
     build_peer_hello_packet,
     touch_peer,
 )
+from .pex import (
+    PEX_REQUEST_TYPE,
+    PEX_RESPONSE_TYPE,
+    send_pex_request,
+    send_pex_response,
+    process_pex_response,
+)
 
 
 # =========================
@@ -179,6 +186,9 @@ async def peer_connection_task(peer, queue):
                 # Первый hello сразу после подключения.
                 await send_peer_hello(websocket)
 
+                # Сразу просим у peer-а список известных узлов.
+                await send_pex_request(websocket)
+
                 sender = asyncio.create_task(peer_sender_loop(websocket, queue))
                 receiver = asyncio.create_task(
                     peer_receiver_loop(websocket, node_id)
@@ -246,6 +256,17 @@ async def peer_receiver_loop(websocket, peer_node_id=None):
             touch_peer(peer_node_id)
 
             packet = json.loads(text)
+
+            packet_type = packet.get("type")
+
+            if packet_type == PEX_REQUEST_TYPE:
+                await send_pex_response(websocket)
+                continue
+
+            if packet_type == PEX_RESPONSE_TYPE:
+                process_pex_response(packet, source="pex")
+                continue
+
             await handle_packet(packet)
 
         except Exception as e:

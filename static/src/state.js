@@ -69,6 +69,8 @@ const joinGroupModalSaveBtn = document.getElementById("joinGroupModalSaveBtn");
 const joinGroupModalCancelBtn = document.getElementById("joinGroupModalCancelBtn");
 let pendingJoinRoomId = null;
 
+let hideDeletedMessages = false;
+
 const hideDeletedMessagesControl = document.getElementById("hideDeletedMessagesControl");
 const hideDeletedMessagesToggle = document.getElementById("hideDeletedMessagesToggle");
 

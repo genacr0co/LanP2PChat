@@ -74,6 +74,10 @@ async function loadConfig() {
         username = config.username || "";
         myNodeId = config.node_id || null;
 
+        if (typeof applyBackendHideDeletedMessagesSetting === "function") {
+            applyBackendHideDeletedMessagesSetting(config.hide_deleted_messages);
+        }
+
         updateProfileUi();
 
         if (!username) {
